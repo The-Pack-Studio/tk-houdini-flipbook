@@ -12,7 +12,13 @@
 
 # expected fields in the configuration file for this engine
 configuration:
-  
+    output_flipbook_template:
+        type: template
+        description: >
+            A reference to a template which locates a Houdini flipbook sequence on
+            disk.  This is used to drive the version and optionally the name of
+            output files.
+        fields: context, version, [name]
 
 
 # this app works in all engines - it does not contain 
