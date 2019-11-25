@@ -12,13 +12,21 @@
 
 # expected fields in the configuration file for this engine
 configuration:
+    work_file_template:
+        type: template
+        description: >
+            A reference to a template which locates a Houdini work file on
+            disk.  This is used to drive the version and optionally the name of
+            output files.
+        fields: context, version, [name]
+
     output_flipbook_template:
         type: template
         description: >
             A reference to a template which locates a Houdini flipbook sequence on
             disk.  This is used to drive the version and optionally the name of
             output files.
-        fields: context, version, [name]
+        fields: context, version, [name], [node]
 
 
 # this app works in all engines - it does not contain 

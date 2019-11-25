@@ -15,13 +15,13 @@ from sgtk.platform.qt import QtCore, QtGui
 import os
 import hou
 import sys
-import pyseq
+import shutil
 import subprocess
-import glob
 import threading
 
 # import pyseq
 sys.path.append(r'\\server01\shared\sharedPython\modules\pyseq')
+import pyseq
 
 class MessageBox(QtGui.QMessageBox):
     def __init__(self, parent, message):
@@ -55,10 +55,12 @@ class AppDialog(QtGui.QWidget):
         # it is often handy to keep a reference to this. You can get it via the following method:
         self._app = sgtk.platform.current_bundle()
 
-        self._template_name = self._app.get_setting("output_flipbook_template")
+        template_name = self._app.get_setting("output_flipbook_template")
+        self._output_template = self._app.get_template_by_name(template_name)
         
         self.column_names = ColumnNames()
         self.setup_ui()
+        self._fill_treewidget()
 
     def setup_ui(self):
         self.setWindowTitle('Flipbook')
@@ -85,8 +87,6 @@ class AppDialog(QtGui.QWidget):
         self.tree_widget.header().setSectionsMovable(False)
         self.tree_widget.header().resizeSections(QtGui.QHeaderView.ResizeToContents)
         self.tree_widget.itemDoubleClicked.connect(self._load_flipbooks)
-
-        # self._fill_treewidget()
 
         tree_bar = QtGui.QHBoxLayout()
         del_but = QtGui.QPushButton('Delete Flipbook(s)')
@@ -183,41 +183,46 @@ class AppDialog(QtGui.QWidget):
         self.res_h.setEnabled(not state)
 
     def _set_flipbook_name_sel(self, item, column):
-        if isinstance(item, treeItem):
+        if isinstance(item, TreeItem):
             self.name_line.setText(item.get_cache_name())
         else:
             self.name_line.setText(item.text(0))
 
     def _del_flipbooks(self):
         for item in self._tree_find_selected():
-            dir_path = item.get_dir()
+            dir_path = os.path.dirname(item.get_path())
 
-            command = 'rm -rf %s' % (dir_path)
-            subprocess.call(command.split(' '))
-
-            cache_name = os.path.basename(dir_path)
-            path_jpg = os.path.join(self.flip_location.get_thumbnail_path(), '%s.jpg' % cache_name)
-
-            command = 'rm -f %s' % (path_jpg)
-            subprocess.call(command.split(' '))
+            shutil.rmtree(dir_path)
 
         self._fill_treewidget()
 
     def _load_flipbooks(self):
         item_paths = []
         for item in self._tree_find_selected():
-            item_paths.append(item.get_mplay_path())
+            item_paths.append(item.get_path())
 
         item_paths = ' '.join(item_paths)
 
         if item_paths:
-            command = '%s/bin/mplay-bin %s -g' % (hou.getenv('HFS'), item_paths)
+            system = sys.platform
+
+            # run the app
+            if system == "linux2":
+                command = '%s/bin/mplay-bin %s -g' % (hou.getenv('HFS'), item_paths)
+            elif system == 'win32':
+                command = '%s/bin/mplay.exe %s -g' % (hou.getenv('HFS'), item_paths)
+            else:
+                msg = "Platform '%s' is not supported." % (system,)
+                self._app.log_error(msg)
+                hou.ui.displayMessage(msg)
+                return
+
             subprocess.call(command.split(' '))
 
     def _copy_flipbook_clipboard(self):
         paths = []
         for item in self._tree_find_selected():
-            paths.append('%s %s' % (item.get_mplay_path().replace('$F4', '####'), item.get_range()))
+            paths.append('%s %s' % (item.get_path().replace('$F4', '####'), item.get_range()))
 
         hou.ui.copyTextToClipboard('\n'.join(paths))
 
@@ -225,7 +230,7 @@ class AppDialog(QtGui.QWidget):
         print 'Publish Flipbook not implemented yet!'
 
     def _create_flipbook(self):
-        #Ranges
+        # Ranges
         range_begin = self.start_line.text()
         if range_begin == '':
             range_begin = self.start_line.placeholderText()
@@ -243,7 +248,7 @@ class AppDialog(QtGui.QWidget):
             MessageBox(self, 'Incorrect flipbook ranges!')
             return
 
-        #Resolution
+        # Resolution
         if not self.res_auto.checkState():
             res_x = self.res_w.text()
             if res_x == '':
@@ -260,7 +265,7 @@ class AppDialog(QtGui.QWidget):
             res_x = None
             res_y = None
 
-        #Name
+        # Name
         flip_name = self.name_line.text()
         if flip_name == '':
             flip_name = self.name_line.placeholderText()
@@ -269,10 +274,11 @@ class AppDialog(QtGui.QWidget):
             MessageBox(self, 'Incorrect flipbook name!')
             return
 
+        # set settings
         sceneViewer = hou.ui.paneTabOfType(hou.paneTabType.SceneViewer)
         if sceneViewer:
             settings = sceneViewer.flipbookSettings().stash()
-            settings.sessionLabel('beflipbook_%s' % os.getpid())
+            settings.sessionLabel('flipbook_%s' % os.getpid())
             settings.overrideGamma(True)
             settings.beautyPassOnly(True)
             settings.frameRange((int(range_begin), int(rangeEnd)))
@@ -283,29 +289,78 @@ class AppDialog(QtGui.QWidget):
             else:
                 settings.useResolution(False)
 
-            #Check if there are already flipbook versions in tree
+            # Check if there are already flipbook versions in tree
             ver = 1
             for top_level in range(self.tree_widget.topLevelItemCount()):
-                topLevelWidget = self.tree_widget.topLevelItem(top_level)
-                if topLevelWidget.text(0) == flip_name:
-                    ver = int(topLevelWidget.child(topLevelWidget.childCount() -1).text(0)[1:]) + 1
+                top_level_widget = self.tree_widget.topLevelItem(top_level)
+                if top_level_widget.text(0) == flip_name:
+                    tree_item = top_level_widget.child(top_level_widget.childCount() - 1)
+                    ver = tree_item.get_version() + 1
 
-            path_flipbook = beshared.createFullPath(self.flip_location.get_flipbook_path(), flip_name, ver, 'exr', True)
+            # create path
+            # get relevant fields from the current file path
+            work_file_fields = self._get_hipfile_fields()
+
+            fields = { 
+                "name": work_file_fields.get("name", None),
+                "node": flip_name,
+                "version": ver,
+                "SEQ": "FORMAT: $F"
+                }
+
+            fields.update(self._app.context.as_template_fields(self._output_template))
+
+            path_flipbook = self._output_template.apply_fields(fields)
+            path_flipbook = path_flipbook.replace(os.sep, '/')
             settings.output(path_flipbook)
 
-            #Create dir to reserve slot
-            command = 'mkdir %s' % (os.path.dirname(path_flipbook))
-            subprocess.call(command.split(' '))
+            # Create dir to reserve slot
+            os.makedirs(os.path.dirname(path_flipbook))
 
             self._fill_treewidget()
 
-            #Create flipbook
+            # Create flipbook
             sceneViewer.flipbook(sceneViewer.curViewport(), settings)
 
     def _fill_treewidget(self):
         self.tree_widget.invisibleRootItem().takeChildren()
 
-        print 'Fill Treewidget, to be implemented'
+        # get relevant fields from the current file path
+        work_file_fields = self._get_hipfile_fields()
+        fields = { 
+            "name": work_file_fields.get("name", None),
+            "SEQ": "FORMAT: $F"
+            }
+
+        fields.update(self._app.context.as_template_fields(self._output_template))
+
+        flipbooks = self._app.sgtk.abstract_paths_from_template(self._output_template, fields)
+        flipbooks.sort()
+        for flip in flipbooks:
+            # get flipbook name
+            flip_fields = self._output_template.get_fields(flip)
+
+            if 'node' in flip_fields:
+                name = flip_fields['node']
+                flip_top_level_item = None
+                
+                # check if the flipbook name is already in tree
+                for top_level in range(self.tree_widget.topLevelItemCount()):
+                    top_level_item = self.tree_widget.topLevelItem(top_level)
+
+                    if top_level_item.text(0) == name:
+                        flip_top_level_item = top_level_item
+                        break
+                
+                # create new top level item or add version
+                if not flip_top_level_item:
+                    flip_top_level_item = QtGui.QTreeWidgetItem([name, '', '', ''])
+                    self.tree_widget.addTopLevelItem(flip_top_level_item)
+                    flip_top_level_item.setExpanded(True)
+
+                TreeItem(flip_top_level_item, self.column_names, flip, flip_fields, self)
+            else:
+                print 'Could not find name for %s' % flip
 
     ###################################################################################################
     # Extra Functions
@@ -313,14 +368,26 @@ class AppDialog(QtGui.QWidget):
     def _tree_find_selected(self):
         items = []
         for top_level in range(self.tree_widget.topLevelItemCount()):
-            topLevelWidget = self.tree_widget.topLevelItem(top_level)
-            topLevelWidget.setSelected(False)
+            top_level_widget = self.tree_widget.topLevelItem(top_level)
+            top_level_widget.setSelected(False)
 
-            for index in range(topLevelWidget.childCount()):
-                if topLevelWidget.child(index).isSelected():
-                    items.append(topLevelWidget.child(index))
-                    topLevelWidget.child(index).setSelected(False)
+            for index in range(top_level_widget.childCount()):
+                if top_level_widget.child(index).isSelected():
+                    items.append(top_level_widget.child(index))
+                    top_level_widget.child(index).setSelected(False)
         return items
+
+    # extract fields from current Houdini file using the workfile template
+    def _get_hipfile_fields(self):
+        current_file_path = hou.hipFile.path()
+
+        work_fields = {}
+        work_file_template = self._app.get_template("work_file_template")
+        if (work_file_template and 
+            work_file_template.validate(current_file_path)):
+            work_fields = work_file_template.get_fields(current_file_path)
+
+        return work_fields
 
     ###################################################################################################
     # navigation
@@ -333,71 +400,88 @@ class AppDialog(QtGui.QWidget):
         """
         self._fill_treewidget()
 
-class treeItem(QtGui.QTreeWidgetItem):
-    def __init__(self, parent, column_names, parent_seq, panel):
-        super(treeItem, self).__init__(parent)
-        self.panel = panel
-        self.column_names = column_names
-        self.dir_path = parent_seq.path
-        self.sequence = beshared.getSequence(self.dir_path, parent_seq.name)
+class TreeItem(QtGui.QTreeWidgetItem):
+    def __init__(self, parent, column_names, path, fields, panel):
+        super(TreeItem, self).__init__(parent)
+        self._column_names = column_names
+        self._path = path
+        self._fields = fields
+        self._panel = panel
+        self._thumb_path = os.path.join(os.path.dirname(self._path), 'thumb.jpg')
 
-        try:
-            self.setText(self.column_names.index_name('name'), 'v%s' % (parent_seq[-3:]))
-        except:
-            print 'Could not get version from %s' % (parent_seq)
+        sequences = pyseq.get_sequences(path.replace('$F4', '*'))
+        self._sequence = None
+        if sequences:
+            self._sequence = sequences[0]
 
-        cache_range = beshared.setRange(self.sequence)
-        self.setText(self.column_names.index_name('range'), cache_range)
+        # set version
+        self.setText(self._column_names.index_name('name'), 'v%s' % (self._fields['version']))
+        
+        # set range
+        cache_range = 'Invalid Sequence Object!'
+        if self._sequence:
+            if self._sequence.missing():
+                cache_range = '[%s-%s], missing %s' % (self._sequenceeq.format('%s'), self._sequence.format('%e'), self._sequence.format('%m'))
+            else:
+                cache_range = self._sequence.format('%R')
+        self.setText(self._column_names.index_name('range'), cache_range)
 
-        self.thumbnail = QtGui.QLabel()
-        self.thumbnail.setAlignment(QtCore.Qt.AlignHCenter)
+        # set thumbnail
+        if self._sequence:
+            if os.path.isfile(self._thumb_path):
+                self._set_thumbnail()
+            else:
+                # self.thread = threading.Thread(target=self._create_thumbnail)
+                # self.thread.start()
 
-        self.thread = threading.Thread(target=self._create_thumbnail, args=(False,))
-        self.thread .start()
-        self.treeWidget().setItemWidget(self, self.column_names.index_name('thumb'), self.thumbnail)
+                self._create_thumbnail()
+                self._set_thumbnail()
 
     ###################################################################################################
     # Private Functions
 
-    def _create_thumbnail(self, force):
-        if self.sequence:
-            in_thumb_path = self.sequence[self.sequence.length() / 2].path
-            filename = '%s.jpg' % os.path.basename(in_thumb_path).split('.')[0]
+    def _create_thumbnail(self):
+        seq_thumb_path = self._sequence[self._sequence.length() / 2].path
 
-            thumb_dir = self.panel.flip_location.get_thumbnail_path()
-            out_thumb_path = os.path.join(thumb_dir, filename)
+        system = sys.platform
 
-            if not os.path.isdir(thumb_dir):
-                os.mkdir(thumb_dir)
-            if not os.path.isfile(out_thumb_path):
-                command = 'ffmpeg -i %s -vf scale=80:-1 %s' % (in_thumb_path, out_thumb_path)
-                subprocess.call(command.split(' '))
+        # run the app
+        if system == "linux2":
+            command = 'ffmpeg -i %s -vf scale=80:-1 %s' % (seq_thumb_path, self._thumb_path)
+            subprocess.call(command.split(' '))
+        elif system == 'win32':
+            ffmpeg_exe = r'\\server01\shared\Dev\Donat\NozMovTools\ffmpeg-4.2.1-win64-static\bin\ffmpeg.exe'
+            command = '%s -i %s -vf scale=80:-1 %s' % (ffmpeg_exe, seq_thumb_path, self._thumb_path)
+            subprocess.call(command.split(' '), shell=True)
+        else:
+            msg = "Platform '%s' is not supported." % (system,)
+            self._app.log_error(msg)
+            hou.ui.displayMessage(msg)
+            return
 
-            image = QtGui.QPixmap(out_thumb_path)
-            self.setSizeHint(self.column_names.index_name('thumb'), image.size())
-            self.thumbnail.setPixmap(image)
+    def _set_thumbnail(self):
+        image = QtGui.QPixmap(self._thumb_path)
+        self.setSizeHint(self._column_names.index_name('thumb'), image.size())
+        
+        self.thumbnail = QtGui.QLabel()
+        self.thumbnail.setAlignment(QtCore.Qt.AlignHCenter)
+        self.thumbnail.setPixmap(image)
+        self.treeWidget().setItemWidget(self, self._column_names.index_name('thumb'), self.thumbnail)
 
-            #Force refresh after all the data is added
-            self.treeWidget().header().resizeSections(QtGui.QHeaderView.ResizeToContents)
+        #Force refresh after all the data is added
+        self.treeWidget().header().resizeSections(QtGui.QHeaderView.ResizeToContents)
 
     ###################################################################################################
     # Get Attributes
 
     def get_cache_name(self):
-        return self.parent().text(0)
+        return self._fields['node']
 
     def get_range(self):
-        return '%s-%s' % (self.sequence.start(), self.sequence.end())
+        return '%s-%s' % (self._sequence.start(), self._sequence.end())
 
-    def get_mplay_path(self):
-        try:
-            if self.sequence.length() == 1:
-                split_name = self.sequence.format('%h%t').split('.')
-                return os.path.join(os.path.dirname(self.sequence.path()), '%s.$F4.%s' % (split_name[0], split_name[2]))
-            else:
-                return os.path.join(os.path.dirname(self.sequence.path()), '%s$F4%s' % (self.sequence.format('%h'), self.sequence.format('%t')))
-        except:
-            return ''
+    def get_path(self):
+        return self._path
 
-    def get_dir(self):
-        return self.dir_path
+    def get_version(self):
+        return self._fields['version']
