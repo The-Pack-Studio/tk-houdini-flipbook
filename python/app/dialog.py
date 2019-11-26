@@ -227,7 +227,18 @@ class AppDialog(QtGui.QWidget):
         hou.ui.copyTextToClipboard('\n'.join(paths))
 
     def _publish_flipbook(self):
-        print 'Publish Flipbook not implemented yet!'
+        for item in self._tree_find_selected():
+            file_path = item.get_path()
+            name = item.get_cache_name()
+            version_number = item.get_version()
+
+            sgtk.util.register_publish(
+                self._app.sgtk,
+                self._app.context,
+                file_path, name,
+                version_number, 
+                comment = 'To be Implemented!',
+                published_file_type = 'Playblast')
 
     def _create_flipbook(self):
         # Ranges
@@ -415,7 +426,7 @@ class TreeItem(QtGui.QTreeWidgetItem):
             self._sequence = sequences[0]
 
         # set version
-        self.setText(self._column_names.index_name('name'), 'v%s' % (self._fields['version']))
+        self.setText(self._column_names.index_name('name'), 'v%s' % (str(self._fields['version']).zfill(3)))
         
         # set range
         cache_range = 'Invalid Sequence Object!'
