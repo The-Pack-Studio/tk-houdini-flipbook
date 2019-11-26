@@ -32,8 +32,8 @@ class MessageBox(QtGui.QMessageBox):
 
 class ColumnNames():
     def __init__(self):
-        self.nice_names = ['Flipbook Name', 'Thumbnail', 'Range']
-        self.prog_names = ['name', 'thumb', 'range']
+        self.nice_names = ['Flipbook Name', 'Thumbnail', 'Range', 'Comment']
+        self.prog_names = ['name', 'thumb', 'range', 'comment']
     def index_name(self, name):
         return self.prog_names.index(name)
     def name_to_nice(self, name):
@@ -154,6 +154,19 @@ class AppDialog(QtGui.QWidget):
         name_box = QtGui.QGroupBox('Flipbook Name')
         name_box.setLayout(name_bar)
 
+        #Comment
+        comment_bar = QtGui.QHBoxLayout()
+        self.comment_line = QtGui.QLineEdit()
+
+        comment_bar.addWidget(self.comment_line)
+
+        comment_box = QtGui.QGroupBox('Comment')
+        comment_box.setLayout(comment_bar)
+
+        name_comment_layout = QtGui.QHBoxLayout()
+        name_comment_layout.addWidget(name_box)
+        name_comment_layout.addWidget(comment_box)
+
         #Create button
         create_but = QtGui.QPushButton('Create Flipbook')
         create_but.setDefault(True)
@@ -161,7 +174,7 @@ class AppDialog(QtGui.QWidget):
 
         #Create Name Button Larout
         name_but_layout = QtGui.QHBoxLayout()
-        name_but_layout.addWidget(name_box)
+        name_but_layout.addLayout(name_comment_layout)
         name_but_layout.addWidget(create_but)
 
         new_flipbook_bar.addWidget(title_label)
@@ -209,15 +222,15 @@ class AppDialog(QtGui.QWidget):
             # run the app
             if system == "linux2":
                 command = '%s/bin/mplay-bin %s -g' % (hou.getenv('HFS'), item_paths)
+                subprocess.call(command.split(' '))
             elif system == 'win32':
                 command = '%s/bin/mplay.exe %s -g' % (hou.getenv('HFS'), item_paths)
+                subprocess.call(command.split(' '), shell=True)
             else:
                 msg = "Platform '%s' is not supported." % (system,)
                 self._app.log_error(msg)
                 hou.ui.displayMessage(msg)
                 return
-
-            subprocess.call(command.split(' '))
 
     def _copy_flipbook_clipboard(self):
         paths = []
@@ -328,6 +341,11 @@ class AppDialog(QtGui.QWidget):
             # Create dir to reserve slot
             os.makedirs(os.path.dirname(path_flipbook))
 
+            if self.comment_line.text() != "":
+                text_file = open(os.path.join(os.path.dirname(path_flipbook), "comment.txt"), "w")
+                text_file.write(self.comment_line.text())
+                text_file.close()
+
             self._fill_treewidget()
 
             # Create flipbook
@@ -369,7 +387,7 @@ class AppDialog(QtGui.QWidget):
                     self.tree_widget.addTopLevelItem(flip_top_level_item)
                     flip_top_level_item.setExpanded(True)
 
-                TreeItem(flip_top_level_item, self.column_names, flip, flip_fields, self)
+                TreeItem(flip_top_level_item, self.column_names, flip, flip_fields)
             else:
                 print 'Could not find name for %s' % flip
 
@@ -412,12 +430,11 @@ class AppDialog(QtGui.QWidget):
         self._fill_treewidget()
 
 class TreeItem(QtGui.QTreeWidgetItem):
-    def __init__(self, parent, column_names, path, fields, panel):
+    def __init__(self, parent, column_names, path, fields):
         super(TreeItem, self).__init__(parent)
         self._column_names = column_names
         self._path = path
         self._fields = fields
-        self._panel = panel
         self._thumb_path = os.path.join(os.path.dirname(self._path), 'thumb.jpg')
 
         sequences = pyseq.get_sequences(path.replace('$F4', '*'))
@@ -436,6 +453,15 @@ class TreeItem(QtGui.QTreeWidgetItem):
             else:
                 cache_range = self._sequence.format('%R')
         self.setText(self._column_names.index_name('range'), cache_range)
+
+        # set comment
+        comment_path = os.path.join(os.path.dirname(self._path), 'comment.txt')
+        if os.path.exists(comment_path):
+            text_file = open(comment_path, "r")
+            text = text_file.read()
+            text_file.close()
+
+            self.setText(self._column_names.index_name('comment'), text)
 
         # set thumbnail
         if self._sequence:
