@@ -16,8 +16,6 @@ import os
 import hou
 import sys
 import shutil
-import subprocess
-import threading
 
 # import pyseq
 sys.path.append(r'\\server01\shared\sharedPython\modules\pyseq')
