@@ -138,16 +138,16 @@ class AppDialog(QtGui.QWidget):
         if range_begin == '':
             range_begin = self._start_line.placeholderText()
 
-        rangeEnd = self._end_line.text()
-        if rangeEnd == '':
-            rangeEnd = self._end_line.placeholderText()
+        range_end = self._end_line.text()
+        if range_end == '':
+            range_end = self._end_line.placeholderText()
 
         if not range_begin.isdigit():
             range_begin = hou.expandString(range_begin)
-        if not rangeEnd.isdigit():
-            rangeEnd = hou.expandString(rangeEnd)
+        if not range_end.isdigit():
+            range_end = hou.expandString(range_end)
 
-        if not range_begin.isdigit() or not rangeEnd.isdigit() or int(range_begin) < 1 or int(rangeEnd) < 1 or int(range_begin) > int(rangeEnd):
+        if not range_begin.isdigit() or not range_end.isdigit() or int(range_begin) < 1 or int(range_end) < 1 or int(range_begin) > int(range_end):
             MessageBox(self, 'Incorrect flipbook ranges!')
             return
 
@@ -184,7 +184,7 @@ class AppDialog(QtGui.QWidget):
             settings.sessionLabel('flipbook_%s' % os.getpid())
             settings.overrideGamma(True)
             settings.beautyPassOnly(True)
-            settings.frameRange((int(range_begin), int(rangeEnd)))
+            settings.frameRange((int(range_begin), int(range_end)))
 
             if res_x and res_y:
                 settings.useResolution(True)
