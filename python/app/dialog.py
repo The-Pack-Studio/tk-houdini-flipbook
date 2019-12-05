@@ -18,7 +18,6 @@ import sys
 import shutil
 
 # import pyseq
-sys.path.append(r'\\server01\shared\sharedPython\modules\pyseq')
 import pyseq
 
 class MessageBox(QtGui.QMessageBox):
