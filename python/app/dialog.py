@@ -142,9 +142,9 @@ class AppDialog(QtGui.QWidget):
             range_end = self._end_line.placeholderText()
 
         if not range_begin.isdigit():
-            range_begin = hou.expandString(range_begin)
+            range_begin = hou.text.expandString(range_begin)
         if not range_end.isdigit():
-            range_end = hou.expandString(range_end)
+            range_end = hou.text.expandString(range_end)
 
         if not range_begin.isdigit() or not range_end.isdigit() or int(range_begin) < 1 or int(range_end) < 1 or int(range_begin) > int(range_end):
             MessageBox(self, 'Incorrect flipbook ranges!')
@@ -221,7 +221,9 @@ class AppDialog(QtGui.QWidget):
 
             # create comment
             if self._comment_line.text() != "":
-                text_file = open(os.path.join(os.path.dirname(path_flipbook), "comment.txt"), "w")
+                dir_path = os.path.dirname(os.path.dirname(path_flipbook))
+                comment_name = '%s.txt' % os.path.basename(path_flipbook).split('.')[0]
+                text_file = open(os.path.join(dir_path, 'flipbook_panel', comment_name), "w")
                 text_file.write(self._comment_line.text())
                 text_file.close()
 
@@ -443,7 +445,10 @@ class TreeItem(QtGui.QTreeWidgetItem):
         self._column_names = column_names
         self._path = path
         self._fields = fields
-        self._thumb_path = os.path.join(os.path.dirname(self._path), 'thumb.jpg')
+
+        dir_path = os.path.dirname(os.path.dirname(self._path))
+        thumb_name = '%s.jpg' % os.path.basename(self._path).split('.')[0]
+        self._thumb_path = os.path.join(dir_path, 'flipbook_panel', thumb_name)
         self._panel = panel
 
         sequences = pyseq.get_sequences(path.replace('$F4', '*'))
@@ -464,7 +469,8 @@ class TreeItem(QtGui.QTreeWidgetItem):
         self.setText(self._column_names.index_name('range'), cache_range)
 
         # set comment
-        comment_path = os.path.join(os.path.dirname(self._path), 'comment.txt')
+        comment_name = '%s.txt' % os.path.basename(self._path).split('.')[0]
+        comment_path = os.path.join(dir_path, 'flipbook_panel', comment_name)
         if os.path.exists(comment_path):
             text_file = open(comment_path, "r")
             text = text_file.read()
@@ -483,7 +489,11 @@ class TreeItem(QtGui.QTreeWidgetItem):
     def _create_thumbnail(self):
         if self._sequence:
             seq_thumb_path = self._sequence[self._sequence.length() / 2].path
-            
+
+            thumb_dir = os.path.dirname(self._thumb_path)
+            if not os.path.exists(thumb_dir):
+                os.makedirs(thumb_dir)
+
             process = QtCore.QProcess(self._panel)
             process.finished.connect(self._set_thumbnail)
             arguments = '-i %s -y -vf scale=80:-1 %s' % (seq_thumb_path, self._thumb_path)
