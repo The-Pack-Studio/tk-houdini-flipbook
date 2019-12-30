@@ -76,12 +76,21 @@ class AppDialog(QtGui.QWidget):
 
     def _del_flipbooks(self):
         for item in self._tree_find_selected():
-            if isinstance(item, TreeItem):
-                dir_path = os.path.dirname(item.get_path())
-
-                shutil.rmtree(dir_path)
+            item.remove_cache()
 
         self._fill_treewidget()
+
+    def _item_double_clicked(self, item, column):
+        comment_index = self._column_names.index_name('comment')
+        if column != comment_index:
+            self._load_flipbooks()
+        else:
+            current_comment = item.text(comment_index)
+
+            text, ok = QtGui.QInputDialog().getText(self, 'Set new comment', 'Comment:', text=current_comment)
+            
+            if text and ok:
+                item.set_comment(text)
 
     def _load_flipbooks(self):
         item_paths = []
@@ -302,7 +311,7 @@ class AppDialog(QtGui.QWidget):
         self._tree_widget.setSelectionMode(QtGui.QAbstractItemView.SelectionMode.ExtendedSelection)
         self._tree_widget.header().setSectionsMovable(False)
         self._tree_widget.header().resizeSections(QtGui.QHeaderView.ResizeToContents)
-        self._tree_widget.itemDoubleClicked.connect(self._load_flipbooks)
+        self._tree_widget.itemDoubleClicked.connect(self._item_double_clicked)
 
         tree_bar = QtGui.QHBoxLayout()
         del_but = QtGui.QPushButton('Delete Flipbook(s)')
@@ -470,9 +479,9 @@ class TreeItem(QtGui.QTreeWidgetItem):
 
         # set comment
         comment_name = '%s.txt' % os.path.basename(self._path).split('.')[0]
-        comment_path = os.path.join(dir_path, 'flipbook_panel', comment_name)
-        if os.path.exists(comment_path):
-            text_file = open(comment_path, "r")
+        self._comment_path = os.path.join(dir_path, 'flipbook_panel', comment_name)
+        if os.path.exists(self._comment_path):
+            text_file = open(self._comment_path, "r")
             text = text_file.read()
             text_file.close()
 
@@ -484,7 +493,7 @@ class TreeItem(QtGui.QTreeWidgetItem):
             self._create_thumbnail()
 
     ###################################################################################################
-    # Thumbnail Functions
+    # Private methods
 
     def _create_thumbnail(self):
         if self._sequence:
@@ -527,7 +536,21 @@ class TreeItem(QtGui.QTreeWidgetItem):
             print msg
 
     ###################################################################################################
-    # Get Attributes
+    # Public methods
+
+    def remove_cache(self):
+        shutil.rmtree(os.path.dirname(self._path))
+        if os.path.exists(self._comment_path):
+            os.remove(self._comment_path)
+        if os.path.exists(self._thumb_path):
+            os.remove(self._thumb_path)
+
+    def set_comment(self, comment):
+        text_file = open(self._comment_path, "w")
+        text_file.write(comment)
+        text_file.close()
+
+        self.setText(self._column_names.index_name('comment'), comment)
 
     def get_cache_name(self):
         return self._fields['node']
