@@ -131,13 +131,14 @@ class AppDialog(QtGui.QWidget):
             file_path = item.get_path()
             name = item.get_cache_name()
             version_number = item.get_version()
+            comment = item.get_comment()
 
             sgtk.util.register_publish(
                 self._app.sgtk,
                 self._app.context,
                 file_path, name,
                 version_number, 
-                comment = 'To be Implemented!',
+                comment = comment,
                 published_file_type = 'Playblast')
 
     def _create_flipbook(self):
@@ -435,7 +436,7 @@ class AppDialog(QtGui.QWidget):
         create_bar = QtGui.QVBoxLayout()
         self._beauty_toggle = QtGui.QCheckBox('Render Bg')
         self._beauty_toggle.setCheckState(QtCore.Qt.CheckState.Unchecked)
-        
+
         create_but = QtGui.QPushButton('Create Flipbook')
         create_but.setDefault(True)
         create_but.clicked.connect(self._create_flipbook)
@@ -597,6 +598,9 @@ class TreeItem(QtGui.QTreeWidgetItem):
         text_file.close()
 
         self.setText(self._column_names.index_name('comment'), comment)
+
+    def get_comment(self):
+        return self.text(self._column_names.index_name('comment'))
 
     def get_cache_name(self):
         return self._fields['node']
