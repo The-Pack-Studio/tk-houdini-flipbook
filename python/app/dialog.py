@@ -190,7 +190,7 @@ class AppDialog(QtGui.QWidget):
         if sceneViewer:
             settings = sceneViewer.flipbookSettings().stash()
             settings.sessionLabel('flipbook_%s' % os.getpid())
-            settings.beautyPassOnly(True)
+            settings.beautyPassOnly(not self._beauty_toggle.checkState())
             settings.frameRange((int(range_begin), int(range_end)))
 
             if res_x and res_y:
@@ -432,14 +432,21 @@ class AppDialog(QtGui.QWidget):
         name_comment_layout.addWidget(comment_box)
 
         #Create button
+        create_bar = QtGui.QVBoxLayout()
+        self._beauty_toggle = QtGui.QCheckBox('Render Bg')
+        self._beauty_toggle.setCheckState(QtCore.Qt.CheckState.Unchecked)
+        
         create_but = QtGui.QPushButton('Create Flipbook')
         create_but.setDefault(True)
         create_but.clicked.connect(self._create_flipbook)
 
+        create_bar.addWidget(self._beauty_toggle)
+        create_bar.addWidget(create_but)
+
         #Create Name Button Larout
         name_but_layout = QtGui.QHBoxLayout()
         name_but_layout.addLayout(name_comment_layout)
-        name_but_layout.addWidget(create_but)
+        name_but_layout.addLayout(create_bar)
 
         new_flipbook_bar.addWidget(title_label)
         new_flipbook_bar.addLayout(groupbox_layout)
@@ -573,7 +580,7 @@ class TreeItem(QtGui.QTreeWidgetItem):
         else:
             msg = "Could not find thumnail at '%s'. Failed to generate it!" % (self._thumb_path)
             self._app.log_error(msg)
-        
+
     ###################################################################################################
     # Public methods
 
