@@ -78,7 +78,7 @@ class AppDialog(QtGui.QWidget):
         for item in self._tree_find_selected():
             item.remove_cache()
 
-        self._fill_treewidget()
+        self._refresh_treewidget()
 
     def _item_double_clicked(self, item, column):
         comment_index = self._column_names.index_name('comment')
@@ -100,12 +100,12 @@ class AppDialog(QtGui.QWidget):
         item_paths = ' '.join(item_paths)
 
         if item_paths:
-            system = sys.platform
-
             process = QtCore.QProcess(self)
-            arguments = '%s -g' % (item_paths)
 
             # run the app
+            arguments = '%s -g' % (item_paths)
+
+            system = sys.platform
             if system == "linux2":
                 program = '%s/bin/mplay-bin' % hou.getenv('HFS')
             elif system == 'win32':
@@ -122,7 +122,7 @@ class AppDialog(QtGui.QWidget):
     def _copy_flipbook_clipboard(self):
         paths = []
         for item in self._tree_find_selected():
-            paths.append('%s %s' % (item.get_path().replace('$F4', '####'), item.get_range()))
+            paths.append(item.get_path().replace('$F4', '####'))
 
         hou.ui.copyTextToClipboard('\n'.join(paths))
 
@@ -190,7 +190,6 @@ class AppDialog(QtGui.QWidget):
         if sceneViewer:
             settings = sceneViewer.flipbookSettings().stash()
             settings.sessionLabel('flipbook_%s' % os.getpid())
-            settings.overrideGamma(True)
             settings.beautyPassOnly(True)
             settings.frameRange((int(range_begin), int(range_end)))
 
@@ -238,10 +237,48 @@ class AppDialog(QtGui.QWidget):
 
                 self._comment_line.setText("")
 
-            self._fill_treewidget()
+            self._add_path_to_tree(path_flipbook)
 
             # Create flipbook
             sceneViewer.flipbook(sceneViewer.curViewport(), settings)
+    def _refresh_treewidget(self):
+        # Get all items in tree
+        items = {}
+        for top_level in range(self._tree_widget.topLevelItemCount()):
+            top_level_widget = self._tree_widget.topLevelItem(top_level)
+
+            for index in range(top_level_widget.childCount()):
+                child = top_level_widget.child(index)
+                items[child.get_path()] = {'item': child, 'checked': False}
+
+        # get relevant fields from the current file path
+        work_file_fields = self._get_hipfile_fields()
+        fields = { 
+            "name": work_file_fields.get("name", None),
+            "SEQ": "FORMAT: $F"
+            }
+
+        fields.update(self._app.context.as_template_fields(self._output_template))
+
+        flipbooks = self._app.sgtk.abstract_paths_from_template(self._output_template, fields)
+        flipbooks.sort()
+
+        # Add new flipbooks
+        for flip in flipbooks:
+            if flip not in items.keys():
+                self._add_path_to_tree(flip)
+            else:
+                items[flip]['checked'] = True
+        
+        # Check for any missing flipbooks
+        for key, value in items.iteritems():
+            if not value['checked']:
+                parent = value['item'].parent()
+                parent.removeChild(value['item'])
+
+                if not parent.childCount():
+                    index = self._tree_widget.indexOfTopLevelItem(parent)
+                    self._tree_widget.takeTopLevelItem(index)
 
     def _fill_treewidget(self):
         self._tree_widget.invisibleRootItem().takeChildren()
@@ -259,33 +296,35 @@ class AppDialog(QtGui.QWidget):
         flipbooks.sort()
 
         for flip in flipbooks:
-            # get flipbook name
-            flip_fields = self._output_template.get_fields(flip)
-
-            if 'node' in flip_fields:
-                name = flip_fields['node']
-                flip_top_level_item = None
-                
-                # check if the flipbook name is already in tree
-                for top_level in range(self._tree_widget.topLevelItemCount()):
-                    top_level_item = self._tree_widget.topLevelItem(top_level)
-
-                    if top_level_item.text(0) == name:
-                        flip_top_level_item = top_level_item
-                        break
-                
-                # create new top level item or add version
-                if not flip_top_level_item:
-                    flip_top_level_item = QtGui.QTreeWidgetItem([name, '', '', ''])
-                    self._tree_widget.addTopLevelItem(flip_top_level_item)
-                    flip_top_level_item.setExpanded(True)
-
-                TreeItem(flip_top_level_item, self._column_names, flip, flip_fields, self)
-            else:
-                print 'Could not find name for %s' % flip
+            self._add_path_to_tree(flip)
 
     ###################################################################################################
     # Private Functions
+
+    def _add_path_to_tree(self, path):
+        fields = self._output_template.get_fields(path)
+
+        if 'node' in fields:
+            name = fields['node']
+            flip_top_level_item = None
+            
+            # check if the flipbook name is already in tree
+            for top_level in range(self._tree_widget.topLevelItemCount()):
+                top_level_item = self._tree_widget.topLevelItem(top_level)
+
+                if top_level_item.text(0) == name:
+                    flip_top_level_item = top_level_item
+                    break
+            
+            # create new top level item or add version
+            if not flip_top_level_item:
+                flip_top_level_item = QtGui.QTreeWidgetItem([name, '', '', ''])
+                self._tree_widget.addTopLevelItem(flip_top_level_item)
+                flip_top_level_item.setExpanded(True)
+
+            TreeItem(flip_top_level_item, self._column_names, path, fields, self)
+        else:
+            self._app.log_error('Could not find name for %s' % path)
 
     def _setup_ui(self):
         self.setWindowTitle('Flipbook')
@@ -297,7 +336,7 @@ class AppDialog(QtGui.QWidget):
         refresh_but.setFixedSize(25, 25)
         icon = QtGui.QIcon(os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "resources", "refresh.png")))
         refresh_but.setIcon(icon)
-        refresh_but.clicked.connect(self._fill_treewidget)
+        refresh_but.clicked.connect(self._refresh_treewidget)
 
         upper_bar.addWidget(title_lab)
         upper_bar.addWidget(refresh_but)
@@ -514,7 +553,7 @@ class TreeItem(QtGui.QTreeWidgetItem):
                 program = r'\\server01\shared\Dev\Donat\NozMovTools\ffmpeg-4.2.1-win64-static\bin\ffmpeg.exe'
             else:
                 msg = "Platform '%s' is not supported." % (system,)
-                print msg
+                self._app.log_error(msg)
                 return
 
             process.start(program, arguments.split(' '))
@@ -533,8 +572,8 @@ class TreeItem(QtGui.QTreeWidgetItem):
             self.treeWidget().header().resizeSections(QtGui.QHeaderView.ResizeToContents)
         else:
             msg = "Could not find thumnail at '%s'. Failed to generate it!" % (self._thumb_path)
-            print msg
-
+            self._app.log_error(msg)
+        
     ###################################################################################################
     # Public methods
 
@@ -554,9 +593,6 @@ class TreeItem(QtGui.QTreeWidgetItem):
 
     def get_cache_name(self):
         return self._fields['node']
-
-    def get_range(self):
-        return '%s-%s' % (self._sequence.start(), self._sequence.end())
 
     def get_path(self):
         return self._path
