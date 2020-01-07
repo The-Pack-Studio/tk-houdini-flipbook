@@ -56,6 +56,10 @@ class AppDialog(QtGui.QWidget):
 
         template_name = self._app.get_setting("output_flipbook_template")
         self._output_template = self._app.get_template_by_name(template_name)
+        
+        self._ffmpeg_exec = self._app.get_setting("ffmpeg_executable")
+        if self._ffmpeg_exec == '' or os.path.exists(self._ffmpeg_exec):
+            self._app.log_error('FFmpeg path not set correctly in config!')
 
         self._column_names = ColumnNames()
         self._setup_ui()
@@ -554,17 +558,7 @@ class TreeItem(QtGui.QTreeWidgetItem):
             process.finished.connect(self._set_thumbnail)
             arguments = '-i %s -y -vf scale=80:-1 %s' % (seq_thumb_path, self._thumb_path)
 
-            system = sys.platform
-            if system == "linux2":
-                program = 'ffmpeg'
-            elif system == 'win32':
-                program = r'\\server01\shared\Dev\Donat\NozMovTools\ffmpeg-4.2.1-win64-static\bin\ffmpeg.exe'
-            else:
-                msg = "Platform '%s' is not supported." % (system,)
-                self._app.log_error(msg)
-                return
-
-            process.start(program, arguments.split(' '))
+            process.start(self._ffmpeg_exec, arguments.split(' '))
 
     def _set_thumbnail(self):
         if os.path.exists(self._thumb_path):

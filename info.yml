@@ -28,6 +28,10 @@ configuration:
             output files.
         fields: context, version, [name], [node]
 
+    ffmpeg_executable:
+        type: str
+        description: >
+            Path to ffmpeg executable to generate thumbnails
 
 # this app works in all engines - it does not contain 
 # any host application specific commands
