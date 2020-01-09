@@ -58,7 +58,7 @@ class AppDialog(QtGui.QWidget):
         self._output_template = self._app.get_template_by_name(template_name)
         
         self._ffmpeg_exec = self._app.get_setting("ffmpeg_executable")
-        if self._ffmpeg_exec == '' or os.path.exists(self._ffmpeg_exec):
+        if self._ffmpeg_exec == '' or not os.path.exists(self._ffmpeg_exec):
             self._app.log_error('FFmpeg path not set correctly in config!')
 
         self._column_names = ColumnNames()
@@ -305,6 +305,9 @@ class AppDialog(QtGui.QWidget):
 
     ###################################################################################################
     # Private Functions
+
+    def get_ffmpeg_exec(self):
+        return self._ffmpeg_exec
 
     def _add_path_to_tree(self, path):
         fields = self._output_template.get_fields(path)
@@ -558,7 +561,7 @@ class TreeItem(QtGui.QTreeWidgetItem):
             process.finished.connect(self._set_thumbnail)
             arguments = '-i %s -y -vf scale=80:-1 %s' % (seq_thumb_path, self._thumb_path)
 
-            process.start(self._ffmpeg_exec, arguments.split(' '))
+            process.start(self._panel.get_ffmpeg_exec(), arguments.split(' '))
 
     def _set_thumbnail(self):
         if os.path.exists(self._thumb_path):
