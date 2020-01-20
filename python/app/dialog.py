@@ -17,7 +17,6 @@ import hou
 import sys
 import shutil
 
-# import pyseq
 import pyseq
 
 class MessageBox(QtGui.QMessageBox):
@@ -95,6 +94,9 @@ class AppDialog(QtGui.QWidget):
             
             if text and ok:
                 item.set_comment(text)
+
+    def _item_expanded(self, item):
+        self._tree_widget.header().resizeSections(QtGui.QHeaderView.ResizeToContents)
 
     def _load_flipbooks(self):
         item_paths = []
@@ -241,11 +243,12 @@ class AppDialog(QtGui.QWidget):
                 text_file.close()
 
                 self._comment_line.setText("")
-
-            self._add_path_to_tree(path_flipbook)
+            
+            self._refresh_treewidget()
 
             # Create flipbook
             sceneViewer.flipbook(sceneViewer.curViewport(), settings)
+
     def _refresh_treewidget(self):
         # Get all items in tree
         items = {}
@@ -285,6 +288,13 @@ class AppDialog(QtGui.QWidget):
                     index = self._tree_widget.indexOfTopLevelItem(parent)
                     self._tree_widget.takeTopLevelItem(index)
 
+        # Refresh items that are visible
+        for top_level in range(self._tree_widget.topLevelItemCount()):
+            top_level_item = self._tree_widget.topLevelItem(top_level)
+            if top_level_item.isExpanded():
+                for index in range(top_level_item.childCount()):
+                    top_level_item.child(index).refresh_item()
+
     def _fill_treewidget(self):
         self._tree_widget.invisibleRootItem().takeChildren()
 
@@ -302,6 +312,9 @@ class AppDialog(QtGui.QWidget):
 
         for flip in flipbooks:
             self._add_path_to_tree(flip)
+
+        for index in range(self._tree_widget.topLevelItemCount()):
+            self._tree_widget.topLevelItem(index).setExpanded(False)
 
     ###################################################################################################
     # Private Functions
@@ -359,6 +372,7 @@ class AppDialog(QtGui.QWidget):
         self._tree_widget.header().setSectionsMovable(False)
         self._tree_widget.header().resizeSections(QtGui.QHeaderView.ResizeToContents)
         self._tree_widget.itemDoubleClicked.connect(self._item_double_clicked)
+        self._tree_widget.itemExpanded.connect(self._item_expanded)
 
         tree_bar = QtGui.QHBoxLayout()
         del_but = QtGui.QPushButton('Delete Flipbook(s)')
@@ -514,22 +528,8 @@ class TreeItem(QtGui.QTreeWidgetItem):
         self._thumb_path = os.path.join(dir_path, 'flipbook_panel', thumb_name)
         self._panel = panel
 
-        sequences = pyseq.get_sequences(path.replace('$F4', '*'))
-        self._sequence = None
-        if sequences:
-            self._sequence = sequences[0]
-
         # set version
         self.setText(self._column_names.index_name('name'), 'v%s' % (str(self._fields['version']).zfill(3)))
-        
-        # set range
-        cache_range = 'Invalid Sequence Object!'
-        if self._sequence:
-            if self._sequence.missing():
-                cache_range = '[%s-%s], missing %s' % (self._sequenceeq.format('%s'), self._sequence.format('%e'), self._sequence.format('%m'))
-            else:
-                cache_range = self._sequence.format('%R')
-        self.setText(self._column_names.index_name('range'), cache_range)
 
         # set comment
         comment_name = '%s.txt' % os.path.basename(self._path).split('.')[0]
@@ -541,10 +541,7 @@ class TreeItem(QtGui.QTreeWidgetItem):
 
             self.setText(self._column_names.index_name('comment'), text)
 
-        if os.path.exists(self._thumb_path):
-            self._set_thumbnail()
-        else:
-            self._create_thumbnail()
+        self.refresh_item()
 
     ###################################################################################################
     # Private methods
@@ -565,22 +562,42 @@ class TreeItem(QtGui.QTreeWidgetItem):
 
     def _set_thumbnail(self):
         if os.path.exists(self._thumb_path):
-            image = QtGui.QPixmap(self._thumb_path)
-            self.setSizeHint(self._column_names.index_name('thumb'), image.size())
-            
-            self._thumbnail = QtGui.QLabel("", self.treeWidget())
-            self._thumbnail.setAlignment(QtCore.Qt.AlignHCenter)
-            self._thumbnail.setPixmap(image)
-            self.treeWidget().setItemWidget(self, self._column_names.index_name('thumb'), self._thumbnail)
-
-            #Force refresh after all the data is added
-            self.treeWidget().header().resizeSections(QtGui.QHeaderView.ResizeToContents)
+            self.treeWidget().itemWidget(self, self._column_names.index_name('thumb'))
+            if not self.treeWidget().itemWidget(self, self._column_names.index_name('thumb')):
+                image = QtGui.QPixmap(self._thumb_path)
+                self.setSizeHint(self._column_names.index_name('thumb'), image.size())
+                
+                self._thumbnail = QtGui.QLabel("", self.treeWidget())
+                self._thumbnail.setAlignment(QtCore.Qt.AlignHCenter)
+                self._thumbnail.setPixmap(image)
+                self.treeWidget().setItemWidget(self, self._column_names.index_name('thumb'), self._thumbnail)
         else:
             msg = "Could not find thumnail at '%s'. Failed to generate it!" % (self._thumb_path)
             self._app.log_error(msg)
 
     ###################################################################################################
     # Public methods
+
+    def refresh_item(self):
+        # set range
+        sequences = pyseq.get_sequences(self._path.replace('$F4', '*'))
+        self._sequence = None
+        if sequences:
+            self._sequence = sequences[0]
+
+        cache_range = 'Invalid Sequence Object!'
+        if self._sequence:
+            if self._sequence.missing():
+                cache_range = '[%s-%s], missing %s' % (self._sequence.format('%s'), self._sequence.format('%e'), self._sequence.format('%m'))
+            else:
+                cache_range = self._sequence.format('%R')
+        self.setText(self._column_names.index_name('range'), cache_range)
+
+        # Set thumbnail
+        if os.path.exists(self._thumb_path):
+            self._set_thumbnail()
+        else:
+            self._create_thumbnail()
 
     def remove_cache(self):
         shutil.rmtree(os.path.dirname(self._path))
