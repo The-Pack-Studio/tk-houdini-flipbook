@@ -93,6 +93,7 @@ class AppDialog(QtGui.QWidget):
         for item in self._tree_find_selected():
             item.remove_cache()
 
+        self._json_manager.remove_item(item.get_fields()['json_name'])
         self._refresh_treewidget()
 
     def _item_double_clicked(self, item, column):
@@ -254,12 +255,7 @@ class AppDialog(QtGui.QWidget):
 
             # create comment
             if self._comment_line.text() != "":
-                dir_path = os.path.dirname(os.path.dirname(path_flipbook))
-                comment_name = '%s.txt' % os.path.basename(path_flipbook).split('.')[0]
-                text_file = open(os.path.join(dir_path, 'flipbook_panel', comment_name), "w")
-                text_file.write(self._comment_line.text())
-                text_file.close()
-
+                self._json_manager.write_item_data(os.path.basename(path_flipbook).split('.')[0], {'comment': self._comment_line.text()})
                 self._comment_line.setText("")
             
             self._refresh_treewidget()
@@ -625,8 +621,6 @@ class TreeItem(QtGui.QTreeWidgetItem):
 
     def remove_cache(self):
         shutil.rmtree(os.path.dirname(self._path))
-        if os.path.exists(self._comment_path):
-            os.remove(self._comment_path)
         if os.path.exists(self._thumb_path):
             os.remove(self._thumb_path)
 
@@ -668,7 +662,7 @@ class JsonManager():
             for name in files:
                 if name.split('.')[-1] == 'txt':
                     comments.append(name)
-            
+
             for comment in comments:
                 text_file = open(os.path.join(flipbook_root, comment), "r")
                 text = text_file.read()
@@ -684,9 +678,16 @@ class JsonManager():
             return self._data[item_name]
         return {}
 
+    def remove_item(self, item_name):
+        if item_name in self._data.keys():
+            self._data.pop(item_name)
+
+            with open(self._json_path, 'w') as json_data:
+                json.dump(self._data, json_data, indent=4)
+
     def write_item_data(self, item_name, item_data):
         self._data[item_name] = item_data
 
         with open(self._json_path, 'w') as json_data:
-           json.dump(self._data, json_data, indent=4)
+            json.dump(self._data, json_data, indent=4)
 
