@@ -463,6 +463,7 @@ class AppDialog(QtGui.QWidget):
         #Comment
         comment_bar = QtGui.QHBoxLayout()
         self._comment_line = QtGui.QLineEdit()
+        self._comment_line.returnPressed.connect(self._create_flipbook)
 
         comment_bar.addWidget(self._comment_line)
 
