@@ -395,13 +395,13 @@ class AppDialog(QtGui.QWidget):
         self._tree_widget.itemExpanded.connect(self._item_expanded)
 
         tree_bar = QtGui.QHBoxLayout()
-        del_but = QtGui.QPushButton('Delete Flipbook(s)')
+        del_but = QtGui.QPushButton('Delete')
         del_but.clicked.connect(self._del_flipbooks)
-        load_but = QtGui.QPushButton('Load Flipbook(s) in Mplay')
+        load_but = QtGui.QPushButton('Load in Mplay')
         load_but.clicked.connect(self._load_flipbooks)
-        send_but = QtGui.QPushButton('Copy Flipbook(s) to Clipboard')
+        send_but = QtGui.QPushButton('Copy Path')
         send_but.clicked.connect(self._copy_flipbook_clipboard)
-        pub_but = QtGui.QPushButton('Publish Flipbook')
+        pub_but = QtGui.QPushButton('Publish')
         pub_but.clicked.connect(self._publish_flipbook)
 
         tree_bar.addWidget(del_but)
@@ -478,7 +478,7 @@ class AppDialog(QtGui.QWidget):
         self._beauty_toggle = QtGui.QCheckBox('Render Bg')
         self._beauty_toggle.setCheckState(QtCore.Qt.CheckState.Unchecked)
 
-        create_but = QtGui.QPushButton('Create Flipbook')
+        create_but = QtGui.QPushButton('Create')
         create_but.setDefault(True)
         create_but.clicked.connect(self._create_flipbook)
 
