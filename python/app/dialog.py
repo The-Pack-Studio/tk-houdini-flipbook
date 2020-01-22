@@ -71,7 +71,7 @@ class AppDialog(QtGui.QWidget):
         fields.update(self._app.context.as_template_fields(self._output_template))
         root_path = self._output_template.parent.parent.apply_fields(fields)
 
-        self._json_manager = JsonManager(root_path)
+        self._json_manager = JsonManager(root_path, fields['name'])
         self._column_names = ColumnNames()
         self._setup_ui()
         self._fill_treewidget()
@@ -85,7 +85,7 @@ class AppDialog(QtGui.QWidget):
 
     def _set_flipbook_name_sel(self, item, column):
         if isinstance(item, TreeItem):
-            self._name_line.setText(item.get_cache_name())
+            self._name_line.setText(item.get_fields()['node'])
         else:
             self._name_line.setText(item.text(0))
 
@@ -154,8 +154,8 @@ class AppDialog(QtGui.QWidget):
     def _publish_flipbook(self):
         for item in self._tree_find_selected():
             file_path = item.get_path()
-            name = item.get_cache_name()
-            version_number = item.get_version()
+            name = item.get_fields()['node']
+            version_number = item.get_fields()['version']
             comment = item.get_comment()
 
             sgtk.util.register_publish(
@@ -231,7 +231,7 @@ class AppDialog(QtGui.QWidget):
                 top_level_widget = self._tree_widget.topLevelItem(top_level)
                 if top_level_widget.text(0) == flip_name:
                     tree_item = top_level_widget.child(top_level_widget.childCount() - 1)
-                    ver = tree_item.get_version() + 1
+                    ver = tree_item.get_fields()['version'] + 1
 
             # create path
             # get relevant fields from the current file path
@@ -592,7 +592,6 @@ class TreeItem(QtGui.QTreeWidgetItem):
             self._app.log_error(msg)
 
     def _set_range(self):
-        # set range
         sequences = pyseq.get_sequences(self._path.replace('$F4', '*'))
         self._sequence = None
         if sequences:
@@ -614,7 +613,6 @@ class TreeItem(QtGui.QTreeWidgetItem):
         self.load_thumbnail()
 
     def load_thumbnail(self):
-        # Set thumbnail
         if os.path.exists(self._thumb_path):
             self._set_thumbnail()
         else:
@@ -635,18 +633,12 @@ class TreeItem(QtGui.QTreeWidgetItem):
     def get_comment(self):
         return self.text(self._column_names.index_name('comment'))
 
-    def get_cache_name(self):
-        return self._fields['node']
-
     def get_path(self):
         return self._path
 
-    def get_version(self):
-        return self._fields['version']
-
 class JsonManager():
-    def __init__(self, root_path):
-        self._json_path = os.path.join(root_path, 'flipbook_panel', 'data.json')
+    def __init__(self, root_path, name):
+        self._json_path = os.path.join(root_path, 'flipbook_panel', '{}_data.json'.format(name))
         self._data = {}
         
         self._convert_existing_data(os.path.join(root_path, 'flipbook_panel'))
