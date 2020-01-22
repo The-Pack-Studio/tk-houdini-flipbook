@@ -18,6 +18,7 @@ import sys
 import shutil
 
 import pyseq
+import json
 
 class MessageBox(QtGui.QMessageBox):
     def __init__(self, parent, message):
@@ -60,6 +61,17 @@ class AppDialog(QtGui.QWidget):
         if self._ffmpeg_exec == '' or not os.path.exists(self._ffmpeg_exec):
             self._app.log_error('FFmpeg path not set correctly in config!')
 
+        # retrieve root path
+        work_file_fields = self._get_hipfile_fields()
+        fields = { 
+            "name": work_file_fields.get("name", None),
+            "SEQ": "FORMAT: $F"
+            }
+
+        fields.update(self._app.context.as_template_fields(self._output_template))
+        root_path = self._output_template.parent.parent.apply_fields(fields)
+
+        self._json_manager = JsonManager(root_path)
         self._column_names = ColumnNames()
         self._setup_ui()
         self._fill_treewidget()
@@ -84,18 +96,24 @@ class AppDialog(QtGui.QWidget):
         self._refresh_treewidget()
 
     def _item_double_clicked(self, item, column):
-        comment_index = self._column_names.index_name('comment')
-        if column != comment_index:
-            self._load_flipbooks()
-        else:
-            current_comment = item.text(comment_index)
+        if isinstance(item, TreeItem):
+            comment_index = self._column_names.index_name('comment')
+            if column != comment_index:
+                self._load_flipbooks()
+            else:
+                current_comment = item.text(comment_index)
 
-            text, ok = QtGui.QInputDialog().getText(self, 'Set new comment', 'Comment:', text=current_comment)
-            
-            if text and ok:
-                item.set_comment(text)
+                text, ok = QtGui.QInputDialog().getText(self, 'Set new comment', 'Comment:', text=current_comment)
+                
+                if text and ok:
+                    item.set_comment(text)
+                    fields = item.get_fields()
+                    self._json_manager.write_item_data(fields['json_name'], fields['data'])
 
     def _item_expanded(self, item):
+        for index in range(item.childCount()):
+            item.child(index).load_thumbnail()
+
         self._tree_widget.header().resizeSections(QtGui.QHeaderView.ResizeToContents)
 
     def _load_flipbooks(self):
@@ -293,7 +311,7 @@ class AppDialog(QtGui.QWidget):
             top_level_item = self._tree_widget.topLevelItem(top_level)
             if top_level_item.isExpanded():
                 for index in range(top_level_item.childCount()):
-                    top_level_item.child(index).refresh_item()
+                    top_level_item.child(index).refresh()
 
     def _fill_treewidget(self):
         self._tree_widget.invisibleRootItem().takeChildren()
@@ -327,6 +345,7 @@ class AppDialog(QtGui.QWidget):
 
         if 'node' in fields:
             name = fields['node']
+
             flip_top_level_item = None
             
             # check if the flipbook name is already in tree
@@ -343,7 +362,12 @@ class AppDialog(QtGui.QWidget):
                 self._tree_widget.addTopLevelItem(flip_top_level_item)
                 flip_top_level_item.setExpanded(True)
 
-            TreeItem(flip_top_level_item, self._column_names, path, fields, self)
+            # get json data
+            name_version = os.path.basename(path).split('.')[0]
+            fields['data'] = self._json_manager.get_item_data(name_version)
+            fields['json_name'] = name_version
+
+            flip_top_level_item.addChild(TreeItem(self._column_names, path, fields, self))
         else:
             self._app.log_error('Could not find name for %s' % path)
 
@@ -517,8 +541,8 @@ class AppDialog(QtGui.QWidget):
         self._fill_treewidget()
 
 class TreeItem(QtGui.QTreeWidgetItem):
-    def __init__(self, parent, column_names, path, fields, panel):
-        super(TreeItem, self).__init__(parent)
+    def __init__(self, column_names, path, fields, panel):
+        super(TreeItem, self).__init__()
         self._column_names = column_names
         self._path = path
         self._fields = fields
@@ -532,16 +556,11 @@ class TreeItem(QtGui.QTreeWidgetItem):
         self.setText(self._column_names.index_name('name'), 'v%s' % (str(self._fields['version']).zfill(3)))
 
         # set comment
-        comment_name = '%s.txt' % os.path.basename(self._path).split('.')[0]
-        self._comment_path = os.path.join(dir_path, 'flipbook_panel', comment_name)
-        if os.path.exists(self._comment_path):
-            text_file = open(self._comment_path, "r")
-            text = text_file.read()
-            text_file.close()
-
-            self.setText(self._column_names.index_name('comment'), text)
-
-        self.refresh_item()
+        if 'comment' in self._fields['data'].keys():
+            self.setText(self._column_names.index_name('comment'), self._fields['data']['comment'])
+        
+        # set range
+        self._set_range()
 
     ###################################################################################################
     # Private methods
@@ -575,10 +594,7 @@ class TreeItem(QtGui.QTreeWidgetItem):
             msg = "Could not find thumnail at '%s'. Failed to generate it!" % (self._thumb_path)
             self._app.log_error(msg)
 
-    ###################################################################################################
-    # Public methods
-
-    def refresh_item(self):
+    def _set_range(self):
         # set range
         sequences = pyseq.get_sequences(self._path.replace('$F4', '*'))
         self._sequence = None
@@ -593,6 +609,14 @@ class TreeItem(QtGui.QTreeWidgetItem):
                 cache_range = self._sequence.format('%R')
         self.setText(self._column_names.index_name('range'), cache_range)
 
+    ###################################################################################################
+    # Public methods
+
+    def refresh(self):
+        self._set_range()
+        self.load_thumbnail()
+
+    def load_thumbnail(self):
         # Set thumbnail
         if os.path.exists(self._thumb_path):
             self._set_thumbnail()
@@ -607,11 +631,11 @@ class TreeItem(QtGui.QTreeWidgetItem):
             os.remove(self._thumb_path)
 
     def set_comment(self, comment):
-        text_file = open(self._comment_path, "w")
-        text_file.write(comment)
-        text_file.close()
-
+        self._fields['data']['comment'] = comment
         self.setText(self._column_names.index_name('comment'), comment)
+
+    def get_fields(self):
+        return self._fields
 
     def get_comment(self):
         return self.text(self._column_names.index_name('comment'))
@@ -624,3 +648,45 @@ class TreeItem(QtGui.QTreeWidgetItem):
 
     def get_version(self):
         return self._fields['version']
+
+class JsonManager():
+    def __init__(self, root_path):
+        self._json_path = os.path.join(root_path, 'flipbook_panel', 'data.json')
+        self._data = {}
+        
+        self._convert_existing_data(os.path.join(root_path, 'flipbook_panel'))
+        
+        if os.path.exists(self._json_path):
+            with open(self._json_path, 'r') as json_data:
+                self._data = json.load(json_data)
+
+    def _convert_existing_data(self, flipbook_root):
+        if not os.path.exists(self._json_path):
+            files = os.listdir(flipbook_root)
+            comments = []
+
+            for name in files:
+                if name.split('.')[-1] == 'txt':
+                    comments.append(name)
+            
+            for comment in comments:
+                text_file = open(os.path.join(flipbook_root, comment), "r")
+                text = text_file.read()
+                self._data[comment.split('.')[0]] = {'comment': text}
+
+                text_file.close()
+
+            with open(self._json_path, 'w') as json_data:
+                json.dump(self._data, json_data, indent=4)
+
+    def get_item_data(self, item_name):
+        if item_name in self._data.keys():
+            return self._data[item_name]
+        return {}
+
+    def write_item_data(self, item_name, item_data):
+        self._data[item_name] = item_data
+
+        with open(self._json_path, 'w') as json_data:
+           json.dump(self._data, json_data, indent=4)
+
