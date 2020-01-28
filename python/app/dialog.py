@@ -156,7 +156,7 @@ class AppDialog(QtGui.QWidget):
             file_path = item.get_path()
             name = item.get_fields()['node']
             version_number = item.get_fields()['version']
-            comment = item.get_comment()
+            comment = item.text(self._column_names.index_name('comment'))
 
             sgtk.util.register_publish(
                 self._app.sgtk,
@@ -543,6 +543,7 @@ class TreeItem(QtGui.QTreeWidgetItem):
         self._column_names = column_names
         self._path = path
         self._fields = fields
+        self._sequence = None
 
         dir_path = os.path.dirname(os.path.dirname(self._path))
         thumb_name = '%s.jpg' % os.path.basename(self._path).split('.')[0]
@@ -593,12 +594,11 @@ class TreeItem(QtGui.QTreeWidgetItem):
 
     def _set_range(self):
         sequences = pyseq.get_sequences(self._path.replace('$F4', '*'))
-        self._sequence = None
+        cache_range = 'Invalid Sequence Object!'
+        
         if sequences:
             self._sequence = sequences[0]
 
-        cache_range = 'Invalid Sequence Object!'
-        if self._sequence:
             if self._sequence.missing():
                 cache_range = '[%s-%s], missing %s' % (self._sequence.format('%s'), self._sequence.format('%e'), self._sequence.format('%m'))
             else:
@@ -630,9 +630,6 @@ class TreeItem(QtGui.QTreeWidgetItem):
     def get_fields(self):
         return self._fields
 
-    def get_comment(self):
-        return self.text(self._column_names.index_name('comment'))
-
     def get_path(self):
         return self._path
 
@@ -648,7 +645,7 @@ class JsonManager():
                 self._data = json.load(json_data)
 
     def _convert_existing_data(self, flipbook_root):
-        if not os.path.exists(self._json_path):
+        if not os.path.exists(self._json_path) and os.path.exists(flipbook_root):
             files = os.listdir(flipbook_root)
             comments = []
 
