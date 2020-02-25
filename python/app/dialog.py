@@ -127,8 +127,8 @@ class AppDialog(QtGui.QWidget):
         if item_paths:
             process = QtCore.QProcess(self)
 
-            # run the app
-            arguments = '%s -g' % (item_paths)
+            # order of arguments important!
+            arguments = '-r {} {} -g -C'.format(hou.fps(), item_paths)
 
             system = sys.platform
             if system == "linux2":
