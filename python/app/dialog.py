@@ -678,6 +678,10 @@ class JsonManager():
     def write_item_data(self, item_name, item_data):
         self._data[item_name] = item_data
 
+        # create dir if it doesn't exist
+        if not os.path.exists(self._json_path):
+            os.makedirs(os.path.dirname(self._json_path))
+
         with open(self._json_path, 'w') as json_data:
             json.dump(self._data, json_data, indent=4)
 
