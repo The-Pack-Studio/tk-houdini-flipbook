@@ -260,6 +260,8 @@ class AppDialog(QtGui.QWidget):
             
             self._refresh_treewidget()
 
+            hou.hipFile.saveAsBackup()
+
             # Create flipbook
             sceneViewer.flipbook(sceneViewer.curViewport(), settings)
 
