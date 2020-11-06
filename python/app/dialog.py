@@ -418,9 +418,9 @@ class AppDialog(QtGui.QWidget):
         #Range
         range_bar = QtGui.QHBoxLayout()
         self._start_line = QtGui.QLineEdit()
-        self._start_line.setPlaceholderText('$FSTART')
+        self._start_line.setPlaceholderText('$RFSTART')
         self._end_line = QtGui.QLineEdit()
-        self._end_line.setPlaceholderText('$FEND')
+        self._end_line.setPlaceholderText('$RFEND')
 
         range_bar.addWidget(self._start_line)
         range_bar.addWidget(self._end_line)
