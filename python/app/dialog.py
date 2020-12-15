@@ -131,21 +131,6 @@ class AppDialog(QtGui.QWidget):
 
         hou.ui.copyTextToClipboard('\n'.join(paths))
 
-    def _publish_flipbook(self):
-        for item in self._tree_find_selected():
-            file_path = item.get_path()
-            name = item.get_fields()['node']
-            version_number = item.get_fields()['version']
-            comment = item.text(self._column_names.index_name('comment'))
-
-            sgtk.util.register_publish(
-                self._app.sgtk,
-                self._app.context,
-                file_path, name,
-                version_number, 
-                comment = comment,
-                published_file_type = 'Playblast')
-
     def _create_flipbook(self):
         # Ranges
         range_begin = self._start_line.text()
@@ -232,8 +217,9 @@ class AppDialog(QtGui.QWidget):
             os.makedirs(os.path.dirname(path_flipbook))
 
             # create comment
-            if self._comment_line.text() != "":
-                self._json_manager.write_item_data(os.path.basename(path_flipbook).split('.')[0], {'comment': self._comment_line.text()})
+            comment = self._comment_line.text()
+            if comment != "":
+                self._json_manager.write_item_data(os.path.basename(path_flipbook).split('.')[0], {'comment': comment})
                 self._comment_line.setText("")
             
             self._refresh_treewidget()
@@ -242,6 +228,15 @@ class AppDialog(QtGui.QWidget):
 
             # Create flipbook
             sceneViewer.flipbook(sceneViewer.curViewport(), settings)
+
+            # publish flipbook
+            sgtk.util.register_publish(
+                self._app.sgtk,
+                self._app.context,
+                path_flipbook, flip_name,
+                version_number = ver, 
+                comment = comment,
+                published_file_type = 'Playblast')
 
     def _refresh_treewidget(self):
         # Get all items in tree
@@ -379,13 +374,10 @@ class AppDialog(QtGui.QWidget):
         load_but.clicked.connect(self._load_flipbooks)
         send_but = QtGui.QPushButton('Copy Path')
         send_but.clicked.connect(self._copy_flipbook_clipboard)
-        pub_but = QtGui.QPushButton('Publish')
-        pub_but.clicked.connect(self._publish_flipbook)
 
         tree_bar.addWidget(del_but)
         tree_bar.addWidget(load_but)
         tree_bar.addWidget(send_but)
-        tree_bar.addWidget(pub_but)
 
         #New flipbook layout
         new_flipbook_bar = QtGui.QVBoxLayout()
