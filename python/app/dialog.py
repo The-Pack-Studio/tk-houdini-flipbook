@@ -218,11 +218,7 @@ class AppDialog(QtGui.QWidget):
 
             # create comment
             comment = self._comment_line.text()
-            if comment != "":
-                self._json_manager.write_item_data(os.path.basename(path_flipbook).split('.')[0], {'comment': comment})
-                self._comment_line.setText("")
-            
-            self._refresh_treewidget()
+            self._add_path_to_tree(path_flipbook, comment)
 
             hou.hipFile.saveAsBackup()
 
@@ -282,6 +278,8 @@ class AppDialog(QtGui.QWidget):
             if top_level_item.isExpanded():
                 for index in range(top_level_item.childCount()):
                     top_level_item.child(index).refresh()
+                    fields = top_level_item.child(index).get_fields()
+                    self._json_manager.write_item_data(fields['json_name'], fields['data'])
 
     def _fill_treewidget(self):
         self._tree_widget.invisibleRootItem().takeChildren()
@@ -309,7 +307,7 @@ class AppDialog(QtGui.QWidget):
     def get_ffmpeg_exec(self):
         return self._ffmpeg_exec
 
-    def _add_path_to_tree(self, path):
+    def _add_path_to_tree(self, path, comment=None):
         fields = self._output_template.get_fields(path)
 
         if 'node' in fields:
@@ -334,9 +332,19 @@ class AppDialog(QtGui.QWidget):
             # get json data
             name_version = os.path.basename(path).split('.')[0]
             fields['data'] = self._json_manager.get_item_data(name_version)
-            fields['json_name'] = name_version
 
-            flip_top_level_item.addChild(treeitem.TreeItem(self._column_names, path, fields, self))
+            if comment:
+                fields['data']['comment'] = comment
+                
+            fields['json_name'] = name_version
+            
+            # create new item and add to widget
+            new_item = treeitem.TreeItem(self._column_names, path, fields, self)
+            flip_top_level_item.addChild(new_item)
+            
+            # update json
+            fields = new_item.get_fields()
+            self._json_manager.write_item_data(fields['json_name'], fields['data'])
         else:
             self._app.log_error('Could not find name for %s' % path)
 

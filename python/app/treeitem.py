@@ -26,7 +26,10 @@ class TreeItem(QtGui.QTreeWidgetItem):
             self.setText(self._column_names.index_name('comment'), self._fields['data']['comment'])
         
         # set range
-        self._set_range()
+        if 'range' in self._fields['data'].keys():
+            self.setText(self._column_names.index_name('range'), self._fields['data']['range'])
+        else:
+            self._set_range()
 
     ###################################################################################################
     # Private methods
@@ -71,6 +74,8 @@ class TreeItem(QtGui.QTreeWidgetItem):
                 cache_range = '[%s-%s], missing %s' % (self._sequence.format('%s'), self._sequence.format('%e'), self._sequence.format('%m'))
             else:
                 cache_range = self._sequence.format('%R')
+        
+        self._fields['data']['range'] = cache_range
         self.setText(self._column_names.index_name('range'), cache_range)
 
     ###################################################################################################
