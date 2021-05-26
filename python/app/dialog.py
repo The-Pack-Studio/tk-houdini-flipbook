@@ -37,10 +37,6 @@ class AppDialog(QtGui.QWidget):
 
         template_name = self._app.get_setting("output_flipbook_template")
         self._output_template = self._app.get_template_by_name(template_name)
-        
-        self._ffmpeg_exec = self._app.get_setting("ffmpeg_executable")
-        if self._ffmpeg_exec == '' or not os.path.exists(self._ffmpeg_exec):
-            self._app.log_error('FFmpeg path not set correctly in config!')
 
         # retrieve root path
         fields = { 
@@ -305,6 +301,12 @@ class AppDialog(QtGui.QWidget):
     # Private Functions
 
     def get_ffmpeg_exec(self):
+        if not hasattr(self, '_ffmpeg_exec'):
+            self._ffmpeg_exec = self._app.get_setting("ffmpeg_executable")
+            
+            if self._ffmpeg_exec == '' or not os.path.exists(self._ffmpeg_exec):
+                self._app.log_error('FFmpeg path not set correctly in config!')
+       
         return self._ffmpeg_exec
 
     def _add_path_to_tree(self, path, comment=None):
