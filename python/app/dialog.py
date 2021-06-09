@@ -65,10 +65,6 @@ class AppDialog(QtGui.QWidget):
     ###################################################################################################
     # UI callbacks
 
-    def _auto_checkbox_changed(self, state):
-        self._res_w.setEnabled(not state)
-        self._res_h.setEnabled(not state)
-
     def _set_flipbook_name_sel(self, item, column):
         if isinstance(item, treeitem.TreeItem):
             self._name_line.setText(item.get_fields()['node'])
@@ -209,23 +205,6 @@ class AppDialog(QtGui.QWidget):
             helpers.MessageBox(self, 'Incorrect flipbook ranges!')
             return
 
-        # Resolution
-        if not self._res_auto.checkState():
-            res_x = self._res_w.text()
-            if res_x == '':
-                res_x = self._res_w.placeholderText()
-
-            res_y = self._res_h.text()
-            if res_y == '':
-                res_y = self._res_h.placeholderText()
-
-            if not res_x.isdigit() or not res_y.isdigit() or int(res_x) < 10 or int(res_y) < 10:
-                helpers.MessageBox(self, 'Incorrect flipbook resolution!')
-                return
-        else:
-            res_x = None
-            res_y = None
-
         # Name
         flip_name = self._name_line.text()
         if flip_name == '':
@@ -242,12 +221,7 @@ class AppDialog(QtGui.QWidget):
             settings.sessionLabel('flipbook_%s' % os.getpid())
             settings.beautyPassOnly(not self._beauty_toggle.checkState())
             settings.frameRange((int(range_begin), int(range_end)))
-
-            if res_x and res_y:
-                settings.useResolution(True)
-                settings.resolution((int(res_x), int(res_y)))
-            else:
-                settings.useResolution(False)
+            settings.useResolution(False)
 
             # Check if there are already flipbook versions in tree
             ver = 1
@@ -459,43 +433,6 @@ class AppDialog(QtGui.QWidget):
         new_flipbook_bar = QtGui.QVBoxLayout()
         title_label = QtGui.QLabel('New Flipbook Settings')
 
-        #Range
-        range_bar = QtGui.QHBoxLayout()
-        self._start_line = QtGui.QLineEdit()
-        self._start_line.setPlaceholderText('$RFSTART')
-        self._end_line = QtGui.QLineEdit()
-        self._end_line.setPlaceholderText('$RFEND')
-
-        range_bar.addWidget(self._start_line)
-        range_bar.addWidget(self._end_line)
-
-        range_box = QtGui.QGroupBox('Range')
-        range_box.setLayout(range_bar)
-
-        #Res
-        res_bar = QtGui.QHBoxLayout()
-        self._res_auto = QtGui.QCheckBox('Auto')
-        self._res_auto.setChecked(True)
-        self._res_auto.stateChanged.connect(self._auto_checkbox_changed)
-        self._res_w = QtGui.QLineEdit()
-        self._res_w.setPlaceholderText('1280')
-        self._res_w.setEnabled(False)
-        self._res_h = QtGui.QLineEdit()
-        self._res_h.setPlaceholderText('720')
-        self._res_h.setEnabled(False)
-
-        res_bar.addWidget(self._res_auto)
-        res_bar.addWidget(self._res_w)
-        res_bar.addWidget(self._res_h)
-
-        res_box = QtGui.QGroupBox('Resolution')
-        res_box.setLayout(res_bar)
-
-        #Create Range Res Larout
-        groupbox_layout = QtGui.QHBoxLayout()
-        groupbox_layout.addWidget(range_box)
-        groupbox_layout.addWidget(res_box)
-
         #Name
         name_bar = QtGui.QHBoxLayout()
         self._name_line = QtGui.QLineEdit()
@@ -520,6 +457,23 @@ class AppDialog(QtGui.QWidget):
         name_comment_layout.addWidget(name_box)
         name_comment_layout.addWidget(comment_box)
 
+        #Create Name Button Larout
+        name_but_layout = QtGui.QHBoxLayout()
+        name_but_layout.addLayout(name_comment_layout)
+
+        #Range
+        range_bar = QtGui.QHBoxLayout()
+        self._start_line = QtGui.QLineEdit()
+        self._start_line.setPlaceholderText('$RFSTART')
+        self._end_line = QtGui.QLineEdit()
+        self._end_line.setPlaceholderText('$RFEND')
+
+        range_bar.addWidget(self._start_line)
+        range_bar.addWidget(self._end_line)
+
+        range_box = QtGui.QGroupBox('Range')
+        range_box.setLayout(range_bar)
+
         #Create button
         create_bar = QtGui.QVBoxLayout()
         self._beauty_toggle = QtGui.QCheckBox('Render Bg')
@@ -532,14 +486,14 @@ class AppDialog(QtGui.QWidget):
         create_bar.addWidget(self._beauty_toggle)
         create_bar.addWidget(create_but)
 
-        #Create Name Button Larout
-        name_but_layout = QtGui.QHBoxLayout()
-        name_but_layout.addLayout(name_comment_layout)
-        name_but_layout.addLayout(create_bar)
+        #Create Range Res Layout
+        groupbox_layout = QtGui.QHBoxLayout()
+        groupbox_layout.addWidget(range_box)
+        groupbox_layout.addLayout(create_bar)
 
         new_flipbook_bar.addWidget(title_label)
-        new_flipbook_bar.addLayout(groupbox_layout)
         new_flipbook_bar.addLayout(name_but_layout)
+        new_flipbook_bar.addLayout(groupbox_layout)
 
         #Create final layout
         self.setLayout(QtGui.QVBoxLayout())
