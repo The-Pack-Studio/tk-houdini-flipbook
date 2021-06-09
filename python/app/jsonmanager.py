@@ -3,7 +3,7 @@ import json
 
 class JsonManager():
     def __init__(self, root_path, name):
-        self._json_path = os.path.join(root_path, 'flipbook_panel', '{}_data.json'.format(name))
+        self._json_path = os.path.join(root_path, '{}_data.json'.format(name))
         self._data = {}
         
         if os.path.exists(self._json_path):
@@ -25,8 +25,9 @@ class JsonManager():
         self._data[item_name] = item_data
 
         # create dir if it doesn't exist
-        if not os.path.exists(self._json_path):
-            os.makedirs(os.path.dirname(self._json_path))
+        dirdir = os.path.dirname(self._json_path)
+        if not os.path.exists(dirdir):
+            os.makedirs(dirdir)
 
         self._write_json()
 
