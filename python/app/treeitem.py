@@ -90,6 +90,9 @@ class TreeItem(QtGui.QTreeWidgetItem):
                 cache_range = '[%s-%s], missing %s' % (self._sequence.format('%s'), self._sequence.format('%e'), self._sequence.format('%m'))
             else:
                 cache_range = self._sequence.format('%R')
+
+            self._fields['data']['first_frame'] = self._sequence.start()
+            self._fields['data']['last_frame'] = self._sequence.end()
         
         self._fields['data']['range'] = cache_range
         self.setText(self._column_names.index_name('range'), cache_range)

@@ -16,7 +16,7 @@ configuration:
         type: template
         description: >
             A reference to a template which locates a Houdini work file on
-            disk.  This is used to drive the version and optionally the name of
+            disk. This is used to drive the version and optionally the name of
             output files.
         fields: context, version, [name]
 
@@ -24,14 +24,31 @@ configuration:
         type: template
         description: >
             A reference to a template which locates a Houdini flipbook sequence on
-            disk.  This is used to drive the version and optionally the name of
+            disk. This is used to drive the version and optionally the name of
             output files.
         fields: context, version, [name], [node]
+
+    output_flipbook_mp4_template:
+        type: template
+        description: >
+            A reference to a template which locates a Houdini flipbook mp4 on
+            disk.
+        fields: context, version, [name], [node]
+        
+    shotgun_farm_script_key:
+        type: str
+        description: >
+            Key to log into shotgun for creating movie files in seperate thread
 
     ffmpeg_executable:
         type: str
         description: >
             Path to ffmpeg executable to generate thumbnails
+
+    python_executable:
+        type: str
+        description: >
+            Path to Python executable to generate mp4 in different environment
 
 # this app works in all engines - it does not contain 
 # any host application specific commands

@@ -14,6 +14,7 @@ from sgtk.platform.qt import QtCore, QtGui
 import os
 import hou
 import sys
+import subprocess
 
 import jsonmanager
 import treeitem
@@ -37,6 +38,15 @@ class AppDialog(QtGui.QWidget):
 
         template_name = self._app.get_setting("output_flipbook_template")
         self._output_template = self._app.get_template_by_name(template_name)
+
+        template_name = self._app.get_setting("output_flipbook_mp4_template")
+        self._output_mp4_template = self._app.get_template_by_name(template_name)
+
+        # set environment variables for mp4 creation
+        os.environ["SHOTGUN_SITE"] = "https://nozon.shotgunstudio.com"
+        os.environ["SHOTGUN_FARM_SCRIPT_USER"] = "deadline"
+        os.environ["SHOTGUN_FARM_SCRIPT_KEY"] = self._app.get_setting("shotgun_farm_script_key")
+        os.environ["NOZ_TK_CONFIG_PATH"] = self._app.tank.pipeline_configuration.get_path()
 
         # retrieve root path
         fields = { 
@@ -126,6 +136,59 @@ class AppDialog(QtGui.QWidget):
             paths.append(item.get_path().replace('$F4', '####'))
 
         hou.ui.copyTextToClipboard('\n'.join(paths))
+
+    def _publish_flipbook(self):
+        # Get item selection before refreshing the data
+        items = self._tree_find_selected()
+
+        # Make sure everything is up to date and saved
+        self._refresh_treewidget()
+
+        # Loop over selected items
+        for item in items:
+            item_fields = item.get_fields()
+            version_info = "{} {} - v{:03d}".format(self._app.context.entity['name'], self._app.context.step['name'], item_fields['version'])
+            path_mp4 = self._output_mp4_template.apply_fields(item_fields)
+            script_path = os.path.join(self._app.tank.pipeline_configuration.get_path(), "config", "hooks", "tk-multi-publish2", "nozonpub", "NozCreatePreviewMovie.py")
+
+            arguments = '"{python_exec}" "{script}" script="{script}" inFile="{inFile}" framerate={framerate} startFrame={startFrame} endFrame={endFrame} outFile="{outFile}" userName="{userName}" project="{project}" versionInfo="{versionInfo}" NozMovSettingsPreset=compositing'.format(
+            python_exec = self.get_python_exec(),
+            script = script_path,
+            inFile = item.get_path().replace('$F4', '####'),
+            framerate = int(hou.fps()),
+            startFrame = item_fields['data']['first_frame'],
+            endFrame = item_fields['data']['last_frame'],
+            outFile = path_mp4,
+            userName = self._app.context.user['name'],
+            project = self._app.context.project['name'],
+            versionInfo = version_info)
+
+            app = subprocess.Popen(arguments)
+            app.wait()
+
+            # Create the version in Shotgun
+            data = {
+                "code": version_info,
+                "sg_status_list": "rev",
+                "entity": self._app.context.entity,
+                "sg_task": self._app.context.task,
+                "sg_first_frame": item_fields['data']['first_frame'],
+                "sg_last_frame": item_fields['data']['last_frame'],
+                "frame_count": (item_fields['data']['last_frame'] - item_fields['data']['first_frame'] + 1),
+                "frame_range": "%s-%s" % (item_fields['data']['first_frame'], item_fields['data']['last_frame']),
+                "sg_frames_have_slate": True,
+                "created_by": self._app.context.user,
+                "updated_by": self._app.context.user,
+                "user": self._app.context.user,
+                "description": item_fields['data'].get('comment'),
+                "sg_path_to_frames": item.get_path().replace('$F4', '####'),
+                "sg_movie_has_slate": True,
+                "project": self._app.context.project,
+                "sg_path_to_movie": path_mp4,
+            }
+
+            version = self._app.shotgun.create("Version", data)
+            self._app.shotgun.upload("Version", version["id"], path_mp4, "sg_uploaded_movie")
 
     def _create_flipbook(self):
         # Ranges
@@ -221,15 +284,6 @@ class AppDialog(QtGui.QWidget):
             # Create flipbook
             sceneViewer.flipbook(sceneViewer.curViewport(), settings)
 
-            # publish flipbook
-            sgtk.util.register_publish(
-                self._app.sgtk,
-                self._app.context,
-                path_flipbook, flip_name,
-                version_number = ver, 
-                comment = comment,
-                published_file_type = 'Playblast')
-
     def _refresh_treewidget(self):
         # Get all items in tree
         items = {}
@@ -309,6 +363,15 @@ class AppDialog(QtGui.QWidget):
        
         return self._ffmpeg_exec
 
+    def get_python_exec(self):
+        if not hasattr(self, '_python_exec'):
+            self._python_exec = self._app.get_setting("python_executable")
+            
+            if self._python_exec == '' or not os.path.exists(self._python_exec):
+                self._app.log_error('Python path not set correctly in config!')
+       
+        return self._python_exec
+
     def _add_path_to_tree(self, path, comment=None):
         fields = self._output_template.get_fields(path)
 
@@ -384,10 +447,13 @@ class AppDialog(QtGui.QWidget):
         load_but.clicked.connect(self._load_flipbooks)
         send_but = QtGui.QPushButton('Copy Path')
         send_but.clicked.connect(self._copy_flipbook_clipboard)
+        publish_but = QtGui.QPushButton('Publish')
+        publish_but.clicked.connect(self._publish_flipbook)
 
         tree_bar.addWidget(del_but)
         tree_bar.addWidget(load_but)
         tree_bar.addWidget(send_but)
+        tree_bar.addWidget(publish_but)
 
         #New flipbook layout
         new_flipbook_bar = QtGui.QVBoxLayout()
