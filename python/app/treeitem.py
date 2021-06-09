@@ -15,7 +15,7 @@ class TreeItem(QtGui.QTreeWidgetItem):
 
         dir_path = os.path.dirname(os.path.dirname(self._path))
         thumb_name = '%s.jpg' % os.path.basename(self._path).split('.')[0]
-        self._thumb_path = os.path.join(dir_path, 'flipbook_panel', thumb_name)
+        self._thumb_path = os.path.join(dir_path, 'tmp_{}'.format(thumb_name))
         self._panel = panel
 
         # set version
@@ -38,10 +38,6 @@ class TreeItem(QtGui.QTreeWidgetItem):
         if self._sequence:
             seq_thumb_path = self._sequence[self._sequence.length() / 2].path
 
-            thumb_dir = os.path.dirname(self._thumb_path)
-            if not os.path.exists(thumb_dir):
-                os.makedirs(thumb_dir)
-
             process = QtCore.QProcess(self._panel)
             process.finished.connect(self._set_thumbnail)
             arguments = '-i %s -y -vf scale=80:-1 %s' % (seq_thumb_path, self._thumb_path)
@@ -55,13 +51,33 @@ class TreeItem(QtGui.QTreeWidgetItem):
                 image = QtGui.QPixmap(self._thumb_path)
                 self.setSizeHint(self._column_names.index_name('thumb'), image.size())
                 
-                self._thumbnail = QtGui.QLabel("", self.treeWidget())
-                self._thumbnail.setAlignment(QtCore.Qt.AlignHCenter)
-                self._thumbnail.setPixmap(image)
-                self.treeWidget().setItemWidget(self, self._column_names.index_name('thumb'), self._thumbnail)
+                thumbnail = QtGui.QLabel("", self.treeWidget())
+                thumbnail.setAlignment(QtCore.Qt.AlignHCenter)
+                thumbnail.setPixmap(image)
+                self.treeWidget().setItemWidget(self, self._column_names.index_name('thumb'), thumbnail)
+                
+                # add to json data
+                ba = QtCore.QByteArray()
+                buff = QtCore.QBuffer(ba)
+                buff.open(QtCore.QIODevice.WriteOnly) 
+                image.save(buff, "JPG")
+
+                self._fields['data']['thumb'] = ba.toBase64().data()
+
+                # remove tmp file
+                os.remove(self._thumb_path)
+        elif 'thumb' in self._fields['data'].keys():
+                ba = QtCore.QByteArray.fromBase64(self._fields['data']['thumb'].encode("utf-8"))
+                image = QtGui.QPixmap()
+                image.loadFromData(ba, "JPG")
+                
+                thumbnail = QtGui.QLabel("", self.treeWidget())
+                thumbnail.setAlignment(QtCore.Qt.AlignHCenter)
+                thumbnail.setPixmap(image)
+                self.treeWidget().setItemWidget(self, self._column_names.index_name('thumb'), thumbnail)
         else:
             msg = "Could not find thumnail at '%s'. Failed to generate it!" % (self._thumb_path)
-            self._app.log_error(msg)
+            self._panel._app.log_error(msg)
 
     def _set_range(self):
         sequences = pyseq.get_sequences(self._path.replace('$F4', '*'))
@@ -86,7 +102,7 @@ class TreeItem(QtGui.QTreeWidgetItem):
         self.load_thumbnail()
 
     def load_thumbnail(self):
-        if os.path.exists(self._thumb_path):
+        if 'thumb' in self._fields['data'].keys():
             self._set_thumbnail()
         else:
             self._create_thumbnail()
