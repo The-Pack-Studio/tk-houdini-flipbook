@@ -35,6 +35,13 @@ configuration:
             disk.
         fields: context, version, [name], [node]
         
+    output_flipbook_backup_template:
+        type: template
+        description: >
+            A reference to a template which locates a Houdini flipbook mp4 on
+            disk.
+        fields: context, version, [name], [node]
+        
     shotgun_farm_script_key:
         type: str
         description: >

@@ -15,6 +15,7 @@ import os
 import hou
 import sys
 import subprocess
+import shutil
 
 import jsonmanager
 import treeitem
@@ -41,6 +42,9 @@ class AppDialog(QtGui.QWidget):
 
         template_name = self._app.get_setting("output_flipbook_mp4_template")
         self._output_mp4_template = self._app.get_template_by_name(template_name)
+
+        template_name = self._app.get_setting("output_flipbook_backup_template")
+        self._output_backup_template = self._app.get_template_by_name(template_name)
 
         # set environment variables for mp4 creation
         os.environ["SHOTGUN_SITE"] = "https://nozon.shotgunstudio.com"
@@ -143,9 +147,27 @@ class AppDialog(QtGui.QWidget):
         # Loop over selected items
         for item in items:
             item_fields = item.get_fields()
-            version_info = "{} {} - v{:03d}".format(self._app.context.entity['name'], self._app.context.step['name'], item_fields['version'])
+
+            # publish backup hip and sequence
+            backup_hip_path = self._output_backup_template.apply_fields(item_fields)
+            sgtk.util.register_publish(self._app.sgtk, self._app.context, backup_hip_path, item_fields['node'], published_file_type="Backup File", version_number=item_fields['version'], dependency_paths=[])
+
+            publish_data_frames = sgtk.util.register_publish(self._app.sgtk, self._app.context, item.get_path().replace('$F4', '####'), item_fields['node'], published_file_type="Playblast", version_number=item_fields['version'], dependency_paths=[backup_hip_path])
+            self._app.log_error(publish_data_frames)
+
+            self._app.log_debug("Published backup file and flipbook for %s" % item_fields['node'])
+
+            # Create mov
             path_mp4 = self._output_mp4_template.apply_fields(item_fields)
+            
+            # Make sure dir exists
+            dirdir = os.path.dirname(path_mp4)
+            if not os.path.exists(dirdir):
+                os.makedirs(dirdir)
+
+            # Arguments
             script_path = os.path.join(self._app.tank.pipeline_configuration.get_path(), "config", "hooks", "tk-multi-publish2", "nozonpub", "NozCreatePreviewMovie.py")
+            version_info = "{} {} {} - v{:03d}".format(self._app.context.entity['name'], item_fields['node'], self._app.context.step['name'], item_fields['version'])
 
             arguments = '"{python_exec}" "{script}" script="{script}" inFile="{inFile}" framerate={framerate} startFrame={startFrame} endFrame={endFrame} outFile="{outFile}" userName="{userName}" project="{project}" versionInfo="{versionInfo}" NozMovSettingsPreset=compositing'.format(
             python_exec = self.get_python_exec(),
@@ -181,6 +203,7 @@ class AppDialog(QtGui.QWidget):
                 "sg_movie_has_slate": True,
                 "project": self._app.context.project,
                 "sg_path_to_movie": path_mp4,
+                "published_files": [publish_data_frames]
             }
 
             version = self._app.shotgun.create("Version", data)
@@ -253,7 +276,19 @@ class AppDialog(QtGui.QWidget):
             comment = self._comment_line.text()
             self._add_path_to_tree(path_flipbook, comment)
 
-            hou.hipFile.saveAsBackup()
+            hou.hipFile.save()
+            backup_path = self._output_backup_template.apply_fields(fields)
+
+            # Create dir if it doesn't exist
+            backup_dir_path = os.path.dirname(backup_path)
+            if not os.path.exists(backup_dir_path):
+                os.makedirs(backup_dir_path)
+
+            # write backup hip
+            hou.hipFile.save(file_name=None, save_to_recent_files=True)
+
+            shutil.copy2(hou.hipFile.path(), backup_path)
+            self._app.log_debug("Created backup file for %s" % fields['node'])
 
             # Create flipbook
             sceneViewer.flipbook(sceneViewer.curViewport(), settings)
