@@ -153,8 +153,7 @@ class AppDialog(QtGui.QWidget):
             sgtk.util.register_publish(self._app.sgtk, self._app.context, backup_hip_path, item_fields['node'], published_file_type="Backup File", version_number=item_fields['version'], dependency_paths=[])
 
             publish_data_frames = sgtk.util.register_publish(self._app.sgtk, self._app.context, item.get_path().replace('$F4', '####'), item_fields['node'], published_file_type="Playblast", version_number=item_fields['version'], dependency_paths=[backup_hip_path])
-            self._app.log_error(publish_data_frames)
-
+            
             self._app.log_debug("Published backup file and flipbook for %s" % item_fields['node'])
 
             # Create mov
