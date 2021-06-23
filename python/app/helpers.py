@@ -9,8 +9,8 @@ class MessageBox(QtGui.QMessageBox):
 
 class ColumnNames():
     def __init__(self):
-        self._nice_names = ['Flipbook Name', 'Thumbnail', 'Range', 'Comment']
-        self._prog_names = ['name', 'thumb', 'range', 'comment']
+        self._nice_names = ['Flipbook Name', 'Thumbnail', 'Range', 'Published', 'Comment']
+        self._prog_names = ['name', 'thumb', 'range', 'publish', 'comment']
     def index_name(self, name):
         return self._prog_names.index(name)
     def name_to_nice(self, name):

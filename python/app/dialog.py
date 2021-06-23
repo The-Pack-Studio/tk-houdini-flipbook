@@ -64,7 +64,7 @@ class AppDialog(QtGui.QWidget):
         self._json_manager = jsonmanager.JsonManager(root_path, fields['name'])
         self._column_names = helpers.ColumnNames()
         self._setup_ui()
-        self._fill_treewidget()
+        self._refresh_treewidget()
 
     ###################################################################################################
     # UI callbacks
@@ -77,7 +77,9 @@ class AppDialog(QtGui.QWidget):
 
     def _del_flipbooks(self):
         for item in self._tree_find_selected():
-            item.remove_cache()
+            # Only delete if not published
+            if item.get_fields()['data']['publish'] == False:
+                item.remove_cache()
 
         self._json_manager.remove_item(item.get_fields()['json_name'])
         self._refresh_treewidget()
@@ -147,6 +149,10 @@ class AppDialog(QtGui.QWidget):
         # Loop over selected items
         for item in items:
             item_fields = item.get_fields()
+            
+            # Check if it is already published
+            if item_fields['data']['publish'] == True:
+                break
 
             # publish backup hip and sequence
             backup_hip_path = self._output_backup_template.apply_fields(item_fields)
@@ -207,6 +213,12 @@ class AppDialog(QtGui.QWidget):
 
             version = self._app.shotgun.create("Version", data)
             self._app.shotgun.upload("Version", version["id"], path_mp4, "sg_uploaded_movie")
+
+            # set published
+            item.published()
+
+        # Make sure everything is up to date and saved
+        self._refresh_treewidget()
 
     def _create_flipbook(self):
         # Ranges
@@ -292,6 +304,9 @@ class AppDialog(QtGui.QWidget):
             # Create flipbook
             sceneViewer.flipbook(sceneViewer.curViewport(), settings)
 
+        # Make sure everything is up to date and saved
+        self._refresh_treewidget()
+
     def _refresh_treewidget(self):
         # Get all items in tree
         items = {}
@@ -320,7 +335,7 @@ class AppDialog(QtGui.QWidget):
             else:
                 items[flip]['checked'] = True
         
-        # Check for any missing flipbooks
+        # Check for any missing flipbooks on disk
         for key, value in items.iteritems():
             if not value['checked']:
                 parent = value['item'].parent()

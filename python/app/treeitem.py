@@ -25,6 +25,9 @@ class TreeItem(QtGui.QTreeWidgetItem):
         if 'comment' in self._fields['data'].keys():
             self.setText(self._column_names.index_name('comment'), self._fields['data']['comment'])
         
+        # set publish status
+        self._set_published()
+
         # set range
         if 'range' in self._fields['data'].keys():
             self.setText(self._column_names.index_name('range'), self._fields['data']['range'])
@@ -97,10 +100,22 @@ class TreeItem(QtGui.QTreeWidgetItem):
         self._fields['data']['range'] = cache_range
         self.setText(self._column_names.index_name('range'), cache_range)
 
+    def _set_published(self):
+        if 'publish' not in self._fields['data'].keys():
+            self._fields['data']['publish'] = False
+        
+        if self._fields['data']['publish']:
+            image_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "resources", "check.svg"))
+        else:
+            image_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "resources", "cross.svg"))
+
+        self.setIcon(self._column_names.index_name('publish'), QtGui.QPixmap(image_path))
+
     ###################################################################################################
     # Public methods
 
     def refresh(self):
+        self._set_published()
         self._set_range()
         self.load_thumbnail()
 
@@ -124,3 +139,6 @@ class TreeItem(QtGui.QTreeWidgetItem):
 
     def get_path(self):
         return self._path
+
+    def published(self):
+        self._fields['data']['publish'] = True
