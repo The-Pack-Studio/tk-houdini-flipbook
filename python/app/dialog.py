@@ -174,7 +174,7 @@ class AppDialog(QtGui.QWidget):
             script_path = os.path.join(self._app.tank.pipeline_configuration.get_path(), "config", "hooks", "tk-multi-publish2", "nozonpub", "NozCreatePreviewMovie.py")
             version_info = "{} {} {} - v{:03d}".format(self._app.context.entity['name'], item_fields['node'], self._app.context.step['name'], item_fields['version'])
 
-            arguments = '"{python_exec}" "{script}" script="{script}" inFile="{inFile}" framerate={framerate} startFrame={startFrame} endFrame={endFrame} outFile="{outFile}" userName="{userName}" project="{project}" versionInfo="{versionInfo}" NozMovSettingsPreset=compositing'.format(
+            arguments = '"{python_exec}" "{script}" script="{script}" inFile="{inFile}" framerate={framerate} startFrame={startFrame} endFrame={endFrame} outFile="{outFile}" userName="{userName}" project="{project}" versionInfo="{versionInfo}" NozMovSettingsPreset=houdini'.format(
             python_exec = self.get_python_exec(),
             script = script_path,
             inFile = item.get_path().replace('$F4', '####'),
