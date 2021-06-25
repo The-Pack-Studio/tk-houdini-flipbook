@@ -175,7 +175,7 @@ class AppDialog(QtGui.QWidget):
             version_info = "{} {} {} - v{:03d}".format(self._app.context.entity['name'], item_fields['node'], self._app.context.step['name'], item_fields['version'])
 
             arguments = '"{python_exec}" "{script}" script="{script}" inFile="{inFile}" framerate={framerate} startFrame={startFrame} endFrame={endFrame} outFile="{outFile}" userName="{userName}" project="{project}" versionInfo="{versionInfo}" NozMovSettingsPreset=houdini'.format(
-            python_exec = self.get_python_exec(),
+            python_exec = self._get_python_exec(),
             script = script_path,
             inFile = item.get_path().replace('$F4', '####'),
             framerate = int(hou.fps()),
@@ -354,6 +354,9 @@ class AppDialog(QtGui.QWidget):
                     fields = top_level_item.child(index).get_fields()
                     self._json_manager.write_item_data(fields['json_name'], fields['data'])
 
+    ###################################################################################################
+    # Private Functions
+    
     def _fill_treewidget(self):
         self._tree_widget.invisibleRootItem().takeChildren()
 
@@ -374,19 +377,7 @@ class AppDialog(QtGui.QWidget):
         for index in range(self._tree_widget.topLevelItemCount()):
             self._tree_widget.topLevelItem(index).setExpanded(False)
 
-    ###################################################################################################
-    # Private Functions
-
-    def get_ffmpeg_exec(self):
-        if not hasattr(self, '_ffmpeg_exec'):
-            self._ffmpeg_exec = self._app.get_setting("ffmpeg_executable")
-            
-            if self._ffmpeg_exec == '' or not os.path.exists(self._ffmpeg_exec):
-                self._app.log_error('FFmpeg path not set correctly in config!')
-       
-        return self._ffmpeg_exec
-
-    def get_python_exec(self):
+    def _get_python_exec(self):
         if not hasattr(self, '_python_exec'):
             self._python_exec = self._app.get_setting("python_executable")
             
@@ -574,6 +565,18 @@ class AppDialog(QtGui.QWidget):
             work_fields = work_file_template.get_fields(current_file_path)
 
         return work_fields.get('name', None)
+
+    ###################################################################################################
+    # public functions
+
+    def get_ffmpeg_exec(self):
+        if not hasattr(self, '_ffmpeg_exec'):
+            self._ffmpeg_exec = self._app.get_setting("ffmpeg_executable")
+            
+            if self._ffmpeg_exec == '' or not os.path.exists(self._ffmpeg_exec):
+                self._app.log_error('FFmpeg path not set correctly in config!')
+       
+        return self._ffmpeg_exec
 
     ###################################################################################################
     # navigation
