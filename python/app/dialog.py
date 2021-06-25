@@ -52,16 +52,7 @@ class AppDialog(QtGui.QWidget):
         os.environ["SHOTGUN_FARM_SCRIPT_KEY"] = self._app.get_setting("shotgun_farm_script_key")
         os.environ["NOZ_TK_CONFIG_PATH"] = self._app.tank.pipeline_configuration.get_path()
 
-        # retrieve root path
-        fields = { 
-            "name": self._get_hipfile_name(),
-            "SEQ": "FORMAT: $F"
-            }
-
-        fields.update(self._app.context.as_template_fields(self._output_template))
-        root_path = self._output_template.parent.parent.apply_fields(fields)
-
-        self._json_manager = jsonmanager.JsonManager(root_path, fields['name'])
+        self._json_manager = jsonmanager.JsonManager(self._app, self._output_template, self._get_hipfile_name())
         self._column_names = helpers.ColumnNames()
         self._setup_ui()
         self._refresh_treewidget()
@@ -587,4 +578,11 @@ class AppDialog(QtGui.QWidget):
 
         :param context: The context to navigate to.
         """
-        self._fill_treewidget()
+        
+        self._app.log_error('Navigated to dialog!')
+        self._json_manager = jsonmanager.JsonManager(self._app, self._output_template, self._get_hipfile_name())
+        
+        # remove whole tree
+        self._tree_widget.clear()
+
+        self._refresh_treewidget()

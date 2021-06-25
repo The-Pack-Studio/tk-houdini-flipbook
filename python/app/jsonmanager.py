@@ -2,7 +2,16 @@ import os
 import json
 
 class JsonManager():
-    def __init__(self, root_path, name):
+    def __init__(self, app, output_template, name):
+        # retrieve root path
+        fields = { 
+            "name": name,
+            "SEQ": "FORMAT: $F"
+            }
+
+        fields.update(app.context.as_template_fields(output_template))
+        root_path = output_template.parent.parent.apply_fields(fields)
+
         self._json_path = os.path.join(root_path, '{}_data.json'.format(name))
         self._data = {}
         
