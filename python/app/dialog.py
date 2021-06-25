@@ -16,6 +16,7 @@ import hou
 import sys
 import subprocess
 import shutil
+import time
 
 import jsonmanager
 import treeitem
@@ -203,6 +204,9 @@ class AppDialog(QtGui.QWidget):
             }
 
             version = self._app.shotgun.create("Version", data)
+            
+            time.sleep(1)
+            
             self._app.shotgun.upload("Version", version["id"], path_mp4, "sg_uploaded_movie")
 
             # set published
@@ -347,7 +351,7 @@ class AppDialog(QtGui.QWidget):
 
     ###################################################################################################
     # Private Functions
-    
+
     def _fill_treewidget(self):
         self._tree_widget.invisibleRootItem().takeChildren()
 
@@ -578,7 +582,7 @@ class AppDialog(QtGui.QWidget):
 
         :param context: The context to navigate to.
         """
-        
+
         self._app.log_error('Navigated to dialog!')
         self._json_manager = jsonmanager.JsonManager(self._app, self._output_template, self._get_hipfile_name())
         
