@@ -146,7 +146,7 @@ class AppDialog(QtGui.QWidget):
             if item_fields['data']['publish'] == True:
                 break
 
-            # get caches in scene, same as in tk-multi-breakdown and tk-houdini-geometry
+            # get caches in scene, including sgtk_file's in out mode
             refs = []
 
             for n in hou.node("/obj").allSubChildren(recurse_in_locked_nodes=False):
@@ -156,13 +156,16 @@ class AppDialog(QtGui.QWidget):
                     hou_path = n.parm("fileName").eval().replace("/", os.path.sep)
                 elif node_type == "abc_cam":
                     hou_path = n.parm("abcFile").eval().replace("/", os.path.sep)
-                elif node_type == "sgtk_file" and n.parm('mode').evalAsString() == 'file':
-                    hou_path = n.parm("file").eval().replace("/", os.path.sep)
+                elif node_type == "sgtk_file":
+                    hou_path = n.parm("filepath").eval().replace("/", os.path.sep)
                 elif node_type == 'arnold_procedural':
                     hou_path = n.parm("ar_filename").eval().replace("/", os.path.sep)
 
                 if hou_path:
-                    refs.append(hou_path)
+                    refs.append(hou_path.replace('$F4', '%04d'))
+            
+            # remove duplicate caches
+            refs = list(set(refs))
 
             # publish backup hip and sequence
             backup_hip_path = self._output_backup_template.apply_fields(item_fields)
