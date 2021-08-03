@@ -146,9 +146,27 @@ class AppDialog(QtGui.QWidget):
             if item_fields['data']['publish'] == True:
                 break
 
+            # get caches in scene, same as in tk-multi-breakdown and tk-houdini-geometry
+            refs = []
+
+            for n in hou.node("/obj").allSubChildren(recurse_in_locked_nodes=False):
+                hou_path = None
+                node_type = n.type().name()
+                if node_type == "alembicarchive":
+                    hou_path = n.parm("fileName").eval().replace("/", os.path.sep)
+                elif node_type == "abc_cam":
+                    hou_path = n.parm("abcFile").eval().replace("/", os.path.sep)
+                elif node_type == "sgtk_file" and n.parm('mode').evalAsString() == 'file':
+                    hou_path = n.parm("file").eval().replace("/", os.path.sep)
+                elif node_type == 'arnold_procedural':
+                    hou_path = n.parm("ar_filename").eval().replace("/", os.path.sep)
+
+                if hou_path:
+                    refs.append(hou_path)
+
             # publish backup hip and sequence
             backup_hip_path = self._output_backup_template.apply_fields(item_fields)
-            sgtk.util.register_publish(self._app.sgtk, self._app.context, backup_hip_path, item_fields['node'], published_file_type="Backup File", version_number=item_fields['version'], dependency_paths=[])
+            sgtk.util.register_publish(self._app.sgtk, self._app.context, backup_hip_path, item_fields['node'], published_file_type="Backup File", version_number=item_fields['version'], dependency_paths=refs)
 
             publish_data_frames = sgtk.util.register_publish(self._app.sgtk, self._app.context, item.get_path().replace('$F4', '####'), item_fields['node'], published_file_type="Playblast", version_number=item_fields['version'], dependency_paths=[backup_hip_path])
             
