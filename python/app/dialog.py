@@ -18,9 +18,7 @@ import subprocess
 import shutil
 import time
 
-import jsonmanager
-import treeitem
-import helpers
+from . import jsonmanager, treeitem, helpers
 
 class AppDialog(QtGui.QWidget):
     @property
@@ -183,24 +181,35 @@ class AppDialog(QtGui.QWidget):
             if not os.path.exists(dirdir):
                 os.makedirs(dirdir)
 
-            # Arguments
-            script_path = os.path.join(self._app.tank.pipeline_configuration.get_path(), "config", "hooks", "tk-multi-publish2", "nozonpub", "NozCreatePreviewMovie.py")
             version_info = "{} {} {} - v{:03d}".format(self._app.context.entity['name'], item_fields['node'], self._app.context.step['name'], item_fields['version'])
+            if sys.version_info.major == 2:
+                # Arguments
+                script_path = os.path.join(self._app.tank.pipeline_configuration.get_path(), "config", "hooks", "tk-multi-publish2", "nozonpub", "NozCreatePreviewMovie.py")
 
-            arguments = '"{python_exec}" "{script}" script="{script}" inFile="{inFile}" framerate={framerate} startFrame={startFrame} endFrame={endFrame} outFile="{outFile}" userName="{userName}" project="{project}" versionInfo="{versionInfo}" NozMovSettingsPreset=houdini'.format(
-            python_exec = self._get_python_exec(),
-            script = script_path,
-            inFile = item.get_path().replace('$F4', '####'),
-            framerate = int(hou.fps()),
-            startFrame = item_fields['data']['first_frame'],
-            endFrame = item_fields['data']['last_frame'],
-            outFile = path_mp4,
-            userName = self._app.context.user['name'],
-            project = self._app.context.project['name'],
-            versionInfo = version_info)
+                arguments = '"{python_exec}" "{script}" script="{script}" inFile="{inFile}" framerate={framerate} startFrame={startFrame} endFrame={endFrame} outFile="{outFile}" userName="{userName}" project="{project}" versionInfo="{versionInfo}" NozMovSettingsPreset=houdini'.format(
+                python_exec = self._get_python_exec(),
+                script = script_path,
+                inFile = item.get_path().replace('$F4', '####'),
+                framerate = int(hou.fps()),
+                startFrame = item_fields['data']['first_frame'],
+                endFrame = item_fields['data']['last_frame'],
+                outFile = path_mp4,
+                userName = self._app.context.user['name'],
+                project = self._app.context.project['name'],
+                versionInfo = version_info)
 
-            app = subprocess.Popen(arguments)
-            app.wait()
+                app = subprocess.Popen(arguments)
+                app.wait()
+            elif sys.version_info.major == 3:
+                movie_converter = self._app.get_setting("movie_converter_module")
+                if movie_converter:
+                    sys.path.append(movie_converter)
+                    import NozCreatePreviewMovie
+
+                    converter = NozCreatePreviewMovie.NozMovie(self._app.tank, item.get_path().replace('$F4', '####'), framerate=int(hou.fps()), start_frame=item_fields['data']['first_frame'], end_frame=item_fields['data']['last_frame'], out_file=path_mp4, top_right_text=self._app.context.user['name'], bottom_left_text=version_info, settings_preset="houdini")
+                    converter.create_movie()
+                else:
+                    self._app.log_error('Could not load the movie_converter module!')
 
             # Create the version in Shotgun
             data = {
@@ -352,7 +361,7 @@ class AppDialog(QtGui.QWidget):
                 items[flip]['checked'] = True
         
         # Check for any missing flipbooks on disk
-        for key, value in items.iteritems():
+        for key, value in iter(items.items()):
             if not value['checked']:
                 parent = value['item'].parent()
                 parent.removeChild(value['item'])

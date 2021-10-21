@@ -2,6 +2,7 @@ from sgtk.platform.qt import QtCore, QtGui
 
 import os
 import shutil
+import sys
 
 import pyseq
 
@@ -39,7 +40,7 @@ class TreeItem(QtGui.QTreeWidgetItem):
 
     def _create_thumbnail(self):
         if self._sequence:
-            seq_thumb_path = self._sequence[self._sequence.length() / 2].path
+            seq_thumb_path = self._sequence[int(self._sequence.length() / 2)].path
 
             process = QtCore.QProcess(self._panel)
             process.finished.connect(self._set_thumbnail)
@@ -65,12 +66,21 @@ class TreeItem(QtGui.QTreeWidgetItem):
                 buff.open(QtCore.QIODevice.WriteOnly) 
                 image.save(buff, "JPG")
 
-                self._fields['data']['thumb'] = ba.toBase64().data()
+                if sys.version_info.major == 2:
+                    self._fields['data']['thumb'] = ba.toBase64().data()
+                elif sys.version_info.major == 3:
+                    self._fields['data']['thumb'] = ba.toBase64().data().decode('UTF-8')
 
                 # remove tmp file
                 os.remove(self._thumb_path)
         elif 'thumb' in self._fields['data'].keys():
-                ba = QtCore.QByteArray.fromBase64(self._fields['data']['thumb'].encode("utf-8"))
+                thumb_bytes = None
+                
+                if sys.version_info.major == 2:
+                    thumb_bytes = self._fields['data']['thumb'].encode("utf-8")
+                elif sys.version_info.major == 3:
+                    thumb_bytes = bytes(self._fields['data']['thumb'], 'UTF-8')
+                ba = QtCore.QByteArray.fromBase64(thumb_bytes)
                 image = QtGui.QPixmap()
                 image.loadFromData(ba, "JPG")
                 
