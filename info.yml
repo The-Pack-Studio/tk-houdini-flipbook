@@ -47,11 +47,6 @@ configuration:
         description: >
             Key to log into shotgun for creating movie files in seperate thread
 
-    movie_converter_module:
-        type: str
-        description: >
-            Module to convert sequence of images to a movie
-
     ffmpeg_executable:
         type: str
         description: >

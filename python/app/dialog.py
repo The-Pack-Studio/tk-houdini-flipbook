@@ -18,6 +18,8 @@ import subprocess
 import shutil
 import time
 
+import NozCreatePreviewMovie
+
 from . import jsonmanager, treeitem, helpers
 
 class AppDialog(QtGui.QWidget):
@@ -201,15 +203,8 @@ class AppDialog(QtGui.QWidget):
                 app = subprocess.Popen(arguments)
                 app.wait()
             elif sys.version_info.major == 3:
-                movie_converter = self._app.get_setting("movie_converter_module")
-                if movie_converter:
-                    sys.path.append(movie_converter)
-                    import NozCreatePreviewMovie
-
-                    converter = NozCreatePreviewMovie.NozMovie(self._app.tank, item.get_path().replace('$F4', '####'), framerate=int(hou.fps()), start_frame=item_fields['data']['first_frame'], end_frame=item_fields['data']['last_frame'], out_file=path_mp4, top_right_text=self._app.context.user['name'], bottom_left_text=version_info, settings_preset="houdini")
-                    converter.create_movie()
-                else:
-                    self._app.log_error('Could not load the movie_converter module!')
+                converter = NozCreatePreviewMovie.NozMovie(self._app.tank, item.get_path().replace('$F4', '####'), framerate=int(hou.fps()), start_frame=item_fields['data']['first_frame'], end_frame=item_fields['data']['last_frame'], out_file=path_mp4, top_right_text=self._app.context.user['name'], bottom_left_text=version_info, settings_preset="houdini")
+                converter.create_movie()
 
             # Create the version in Shotgun
             data = {
