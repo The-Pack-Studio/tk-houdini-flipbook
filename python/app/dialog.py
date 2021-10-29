@@ -18,7 +18,8 @@ import subprocess
 import shutil
 import time
 
-import NozCreatePreviewMovie
+if sys.version_info.major >= 3:
+    import NozCreatePreviewMovie
 
 from . import jsonmanager, treeitem, helpers
 
