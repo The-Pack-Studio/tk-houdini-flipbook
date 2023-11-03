@@ -28,34 +28,21 @@ configuration:
             output files.
         fields: context, version, [name], [node]
 
-    output_flipbook_mp4_template:
-        type: template
-        description: >
-            A reference to a template which locates a Houdini flipbook mp4 on
-            disk.
-        fields: context, version, [name], [node]
-        
     output_flipbook_backup_template:
         type: template
         description: >
             A reference to a template which locates a Houdini flipbook mp4 on
             disk.
         fields: context, version, [name], [node]
-        
-    shotgun_farm_script_key:
+
+    Nozon Preview Movie Preset:
         type: str
-        description: >
-            Key to log into shotgun for creating movie files in seperate thread
+        description: Name of the nozmov preview movie preset. Must exist in the tk-multi-nozmov app configuration
 
     ffmpeg_executable:
         type: str
         description: >
             Path to ffmpeg executable to generate thumbnails
-
-    python_executable:
-        type: str
-        description: >
-            Path to Python executable to generate mp4 in different environment
 
 # this app works in all engines - it does not contain 
 # any host application specific commands

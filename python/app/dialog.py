@@ -18,9 +18,6 @@ import subprocess
 import shutil
 import time
 
-if sys.version_info.major >= 3:
-    import NozCreatePreviewMovie
-
 from . import jsonmanager, treeitem, helpers
 
 class AppDialog(QtGui.QWidget):
@@ -42,17 +39,10 @@ class AppDialog(QtGui.QWidget):
         template_name = self._app.get_setting("output_flipbook_template")
         self._output_template = self._app.get_template_by_name(template_name)
 
-        template_name = self._app.get_setting("output_flipbook_mp4_template")
-        self._output_mp4_template = self._app.get_template_by_name(template_name)
-
         template_name = self._app.get_setting("output_flipbook_backup_template")
         self._output_backup_template = self._app.get_template_by_name(template_name)
 
-        # set environment variables for mp4 creation
-        os.environ["SHOTGUN_SITE"] = "https://nozon.shotgunstudio.com"
-        os.environ["SHOTGUN_FARM_SCRIPT_USER"] = "deadline"
-        os.environ["SHOTGUN_FARM_SCRIPT_KEY"] = self._app.get_setting("shotgun_farm_script_key")
-        os.environ["NOZ_TK_CONFIG_PATH"] = self._app.tank.pipeline_configuration.get_path()
+        self.movie_preset = self._app.get_setting("Nozon Preview Movie Preset")
 
         self._json_manager = jsonmanager.JsonManager(self._app, self._output_template, self._get_hipfile_name())
         self._column_names = helpers.ColumnNames()
@@ -176,36 +166,26 @@ class AppDialog(QtGui.QWidget):
             
             self._app.log_debug("Published backup file and flipbook for %s" % item_fields['node'])
 
-            # Create mov
-            path_mp4 = self._output_mp4_template.apply_fields(item_fields)
-            
-            # Make sure dir exists
-            dirdir = os.path.dirname(path_mp4)
-            if not os.path.exists(dirdir):
-                os.makedirs(dirdir)
+            # Create preview movie
+            nozmov_app = self._app.engine.apps.get("tk-multi-nozmov")
+            if not nozmov_app:
+                self.logger.error("Error : tk-multi-nozmov app not found")
+                raise Exception("Error : tk-multi-nozmov app not found")
 
+            preview_movie_path = nozmov_app.calc_output_filepath(item.get_path().replace('$F4', '####'), self.movie_preset)
             version_info = "{} {} {} - v{:03d}".format(self._app.context.entity['name'], item_fields['node'], self._app.context.step['name'], item_fields['version'])
-            if sys.version_info.major == 2:
-                # Arguments
-                script_path = os.path.join(self._app.tank.pipeline_configuration.get_path(), "config", "hooks", "tk-multi-publish2", "nozonpub", "NozCreatePreviewMovie.py")
 
-                arguments = '"{python_exec}" "{script}" script="{script}" inFile="{inFile}" framerate={framerate} startFrame={startFrame} endFrame={endFrame} outFile="{outFile}" userName="{userName}" project="{project}" versionInfo="{versionInfo}" NozMovSettingsPreset=houdini'.format(
-                python_exec = self._get_python_exec(),
-                script = script_path,
-                inFile = item.get_path().replace('$F4', '####'),
-                framerate = int(hou.fps()),
-                startFrame = item_fields['data']['first_frame'],
-                endFrame = item_fields['data']['last_frame'],
-                outFile = path_mp4,
-                userName = self._app.context.user['name'],
-                project = self._app.context.project['name'],
-                versionInfo = version_info)
-
-                app = subprocess.Popen(arguments)
-                app.wait()
-            elif sys.version_info.major == 3:
-                converter = NozCreatePreviewMovie.NozMovie(self._app.tank, item.get_path().replace('$F4', '####'), framerate=int(hou.fps()), start_frame=item_fields['data']['first_frame'], end_frame=item_fields['data']['last_frame'], out_file=path_mp4, top_right_text=self._app.context.user['name'], bottom_left_text=version_info, settings_preset="houdini")
-                converter.create_movie()
+            nozmov_app.noz_movie(in_file = item.get_path().replace('$F4', '####'),
+                                out_file = preview_movie_path,
+                                first_frame = item_fields['data']['first_frame'],
+                                last_frame = item_fields['data']['last_frame'],
+                                framerate = hou.fps(),
+                                preset_name = self.movie_preset,
+                                user_name = self._app.context.user['name'],
+                                version_info = version_info,
+                                publish_hook=self._app) 
+            # Create the movie file
+            nozmov_app.execute()
 
             # Create the version in Shotgun
             data = {
@@ -217,23 +197,23 @@ class AppDialog(QtGui.QWidget):
                 "sg_last_frame": item_fields['data']['last_frame'],
                 "frame_count": (item_fields['data']['last_frame'] - item_fields['data']['first_frame'] + 1),
                 "frame_range": "%s-%s" % (item_fields['data']['first_frame'], item_fields['data']['last_frame']),
-                "sg_frames_have_slate": True,
+                "sg_frames_have_slate": False,
                 "created_by": self._app.context.user,
                 "updated_by": self._app.context.user,
                 "user": self._app.context.user,
                 "description": item_fields['data'].get('comment'),
                 "sg_path_to_frames": item.get_path().replace('$F4', '####'),
-                "sg_movie_has_slate": True,
+                "sg_movie_has_slate": False,
                 "project": self._app.context.project,
-                "sg_path_to_movie": path_mp4,
-                "published_files": [publish_data_frames]
-            }
+                "sg_path_to_movie": preview_movie_path,
+                "published_files": [publish_data_frames],
+                }
 
             version = self._app.shotgun.create("Version", data)
             
             time.sleep(1)
             
-            self._app.shotgun.upload("Version", version["id"], path_mp4, "sg_uploaded_movie")
+            self._app.shotgun.upload("Version", version["id"], preview_movie_path, "sg_uploaded_movie")
 
             # set published
             item.published()
@@ -397,15 +377,6 @@ class AppDialog(QtGui.QWidget):
 
         for index in range(self._tree_widget.topLevelItemCount()):
             self._tree_widget.topLevelItem(index).setExpanded(False)
-
-    def _get_python_exec(self):
-        if not hasattr(self, '_python_exec'):
-            self._python_exec = self._app.get_setting("python_executable")
-            
-            if self._python_exec == '' or not os.path.exists(self._python_exec):
-                self._app.log_error('Python path not set correctly in config!')
-       
-        return self._python_exec
 
     def _add_path_to_tree(self, path, comment=None):
         fields = self._output_template.get_fields(path)
